@@ -2,150 +2,511 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>Gesture RC Car</title>
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#00e676"/>
 <style>
 :root{
   --bg:#0f1117;--surface:#1a1d27;--border:#2a2d3a;
   --text:#e8eaf0;--muted:#6b7080;
-  --green:#00e676;--blue:#4dabf7;
+  --green:#00e676;--blue:#4dabf7;--amber:#ffb300;
+  --red:#ff5252;--purple:#b39ddb;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{
-  font-family:'Segoe UI',system-ui,sans-serif;
+body{font-family:'Segoe UI',system-ui,sans-serif;
   background:var(--bg);color:var(--text);
   min-height:100dvh;display:flex;flex-direction:column;
-  align-items:center;padding:32px 20px;gap:32px;
-}
-header{text-align:center;}
-header h1{font-size:28px;font-weight:900;margin-bottom:8px;}
-header p{color:var(--muted);font-size:15px;line-height:1.7;}
-.badge{
-  display:inline-block;background:var(--surface);
-  border:1px solid var(--border);border-radius:20px;
-  padding:5px 14px;font-size:12px;color:var(--muted);margin-top:10px;
-}
-section{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:14px;padding:22px;width:100%;max-width:480px;
-}
-section h2{
-  font-size:13px;text-transform:uppercase;letter-spacing:.8px;
-  color:var(--muted);margin-bottom:14px;
-}
-.steps{display:flex;flex-direction:column;gap:12px;}
-.step{display:flex;gap:14px;align-items:flex-start;}
-.num{
-  width:28px;height:28px;border-radius:50%;
-  background:var(--green);color:#000;font-weight:700;
-  font-size:13px;display:flex;align-items:center;
-  justify-content:center;flex-shrink:0;
-}
-.step-content p{font-size:14px;line-height:1.6;}
-.step-content small{color:var(--muted);font-size:12px;}
-.wifi-chip{
-  display:inline-block;
-  background:rgba(0,230,118,.1);border:1px solid var(--green);
-  border-radius:6px;padding:2px 10px;font-family:monospace;
-  font-size:14px;color:var(--green);margin:2px 0;
-}
-.url-chip{
-  display:inline-block;
-  background:rgba(77,171,247,.1);border:1px solid var(--blue);
-  border-radius:6px;padding:2px 10px;font-family:monospace;
-  font-size:14px;color:var(--blue);margin:2px 0;
-}
-.gesture-grid{
-  display:grid;grid-template-columns:1fr 1fr;gap:8px;
-}
-.gesture-row{
+  -webkit-tap-highlight-color:transparent;overflow-x:hidden;}
+.overlay{position:fixed;inset:0;background:rgba(15,17,23,.97);
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;z-index:900;padding:28px;
+  text-align:center;gap:16px;}
+.overlay.gone{display:none;}
+#load-overlay{z-index:999;}
+.spinner{width:48px;height:48px;border:3px solid var(--border);
+  border-top-color:var(--green);border-radius:50%;
+  animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.overlay h2{font-size:22px;font-weight:800;}
+.overlay p{font-size:14px;color:var(--muted);line-height:1.8;max-width:320px;}
+#busy-overlay h2{color:var(--amber);}
+
+/* IP setup card */
+.ip-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:16px;}
+.ip-card h3{font-size:12px;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:10px;}
+.ip-row{display:flex;gap:8px;}
+#ip-input{flex:1;background:var(--bg);border:1px solid var(--border);
+  border-radius:8px;padding:10px 14px;color:var(--text);
+  font-size:15px;font-family:monospace;}
+#ip-input:focus{outline:none;border-color:var(--blue);}
+.ip-btn{background:var(--blue);border:none;border-radius:8px;
+  padding:10px 16px;color:#000;font-weight:700;cursor:pointer;}
+.ip-hint{font-size:12px;color:var(--muted);margin-top:8px;}
+
+.btn-primary{background:var(--green);border:none;border-radius:12px;
+  padding:15px 32px;color:#000;font-size:16px;font-weight:800;
+  cursor:pointer;width:100%;max-width:340px;}
+.btn-primary:active{transform:scale(.97);}
+header{background:var(--surface);border-bottom:1px solid var(--border);
+  padding:11px 16px;display:flex;justify-content:space-between;
+  align-items:center;position:sticky;top:0;z-index:100;}
+header h1{font-size:16px;font-weight:700;}
+.pills{display:flex;gap:6px;}
+.pill{font-size:11px;padding:4px 10px;border-radius:20px;
+  border:1px solid var(--border);color:var(--muted);
+  background:var(--bg);transition:all .25s;white-space:nowrap;}
+.pill.on{color:var(--green);border-color:var(--green);}
+.pill.err{color:var(--red);border-color:var(--red);}
+.pill.warn{color:var(--amber);border-color:var(--amber);}
+main{flex:1;display:flex;flex-direction:column;gap:12px;padding:12px;}
+.cam-wrap{position:relative;background:#000;border-radius:12px;
+  overflow:hidden;aspect-ratio:4/3;}
+#cam-canvas{width:100%;height:100%;object-fit:cover;
+  display:block;transform:scaleX(-1);}
+.cam-hud{position:absolute;inset:0;display:flex;
+  flex-direction:column;justify-content:space-between;
+  padding:10px;pointer-events:none;}
+.hud-top{display:flex;justify-content:space-between;}
+.g-badge{background:rgba(0,0,0,.75);padding:5px 13px;
+  border-radius:20px;font-size:14px;font-weight:600;color:var(--green);}
+.fps{background:rgba(0,0,0,.6);padding:3px 8px;
+  border-radius:6px;font-size:11px;color:var(--muted);}
+.conf-row{display:flex;align-items:center;gap:8px;}
+.conf-track{flex:1;height:5px;background:rgba(255,255,255,.15);
+  border-radius:3px;overflow:hidden;}
+.conf-fill{height:100%;border-radius:3px;
+  background:var(--green);width:0;transition:width .12s;}
+.conf-pct{font-size:11px;color:var(--muted);min-width:30px;text-align:right;}
+.card{background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:14px;}
+.card-label{font-size:11px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;}
+.cmd{font-size:54px;font-weight:900;letter-spacing:3px;
+  text-align:center;padding:8px 0;color:var(--red);transition:color .12s;}
+.cmd.FORWARD{color:var(--green);}
+.cmd.REVERSE{color:var(--blue);}
+.cmd.LEFT{color:var(--purple);}
+.cmd.RIGHT{color:var(--amber);}
+.dpad{display:flex;flex-direction:column;align-items:center;gap:6px;}
+.dpad-row{display:flex;gap:6px;}
+.dpad-btn{width:62px;height:62px;border-radius:10px;
   background:var(--bg);border:1px solid var(--border);
-  border-radius:8px;padding:10px 12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:var(--muted);transition:all .1s;}
+.dpad-btn.lit{background:#0d2b1a;border-color:var(--green);
+  color:var(--green);box-shadow:0 0 16px rgba(0,230,118,.35);}
+.dpad-btn.lit.stp{background:#2a0d0d;border-color:var(--red);
+  color:var(--red);box-shadow:0 0 16px rgba(255,82,82,.35);}
+.conn-bar{display:flex;align-items:center;gap:10px;
+  padding:9px 12px;background:var(--bg);
+  border-radius:8px;border:1px solid var(--border);}
+.dot{width:8px;height:8px;border-radius:50%;
+  background:var(--muted);flex-shrink:0;}
+.dot.on{background:var(--green);box-shadow:0 0 6px var(--green);}
+.dot.err{background:var(--red);}
+.conn-text{flex:1;font-size:12px;color:var(--muted);}
+.start-btn{background:var(--green);border:none;border-radius:12px;
+  padding:17px;color:#000;font-size:17px;font-weight:800;
+  width:100%;cursor:pointer;transition:all .15s;}
+.start-btn.running{background:var(--red);color:#fff;}
+.start-btn:active{transform:scale(.97);}
+.install-bar{background:var(--surface);border:1px solid var(--green);
+  border-radius:10px;padding:10px 14px;display:flex;
+  align-items:center;gap:10px;font-size:13px;}
+.install-bar.gone{display:none;}
+.install-btn{background:var(--green);border:none;border-radius:6px;
+  padding:6px 14px;color:#000;font-weight:700;cursor:pointer;
+  flex-shrink:0;font-size:12px;}
+@media(min-width:580px){
+  main{flex-direction:row;flex-wrap:wrap;}
+  .cam-wrap{max-width:380px;}
+  .right{flex:1;display:flex;flex-direction:column;gap:12px;min-width:260px;}
 }
-.gesture-row .cmd{
-  font-size:11px;font-weight:700;letter-spacing:.8px;
-  color:var(--green);margin-bottom:3px;
-}
-.gesture-row .desc{font-size:12px;color:var(--muted);}
-footer{color:var(--muted);font-size:12px;text-align:center;}
 </style>
 </head>
 <body>
 
+<div class="overlay" id="load-overlay">
+  <div class="spinner"></div>
+  <h2>Gesture RC Car</h2>
+  <p id="load-txt">Loading ML model…<br>
+    <small>First load ~15s · cached permanently after</small></p>
+</div>
+
+<div class="overlay gone" id="busy-overlay">
+  <div style="font-size:52px">🔒</div>
+  <h2>Car Busy</h2>
+  <p>Car is already controlled by another device.<br>
+     Ask them to close the app, then retry.</p>
+  <button class="btn-primary" id="busy-retry">↺ Try Again</button>
+</div>
+
 <header>
   <h1>⬡ Gesture RC Car</h1>
-  <p>Control a real RC car with hand gestures.<br>
-     No apps. No wearables. Just your hand.</p>
-  <span class="badge">MediaPipe · Random Forest · ESP8266 · WebSocket</span>
+  <div class="pills">
+    <span class="pill" id="p-cam">● Cam</span>
+    <span class="pill" id="p-ml">● ML</span>
+    <span class="pill" id="p-car">● Car</span>
+  </div>
 </header>
 
-<section>
-  <h2>How to Control the Car</h2>
-  <div class="steps">
-    <div class="step">
-      <div class="num">1</div>
-      <div class="step-content">
-        <p>Power on the car</p>
-        <small>ESP8266 starts broadcasting WiFi automatically</small>
+<main>
+  <div class="cam-wrap">
+    <canvas id="cam-canvas"></canvas>
+    <div class="cam-hud">
+      <div class="hud-top">
+        <div class="g-badge" id="g-badge">—</div>
+        <div class="fps" id="fps-el">0 fps</div>
       </div>
-    </div>
-    <div class="step">
-      <div class="num">2</div>
-      <div class="step-content">
-        <p>Connect phone WiFi to<br>
-           <span class="wifi-chip">GestureCar</span></p>
-        <small>Open network — no password needed</small>
-      </div>
-    </div>
-    <div class="step">
-      <div class="num">3</div>
-      <div class="step-content">
-        <p>Open in phone browser<br>
-           <span class="url-chip">http://192.168.4.1</span></p>
-        <small>The control app loads directly from the car</small>
-      </div>
-    </div>
-    <div class="step">
-      <div class="num">4</div>
-      <div class="step-content">
-        <p>Tap Start → show hand to front camera</p>
-        <small>Closing the browser tab stops the car automatically</small>
+      <div class="conf-row">
+        <div class="conf-track">
+          <div class="conf-fill" id="conf-fill"></div>
+        </div>
+        <span class="conf-pct" id="conf-pct">0%</span>
       </div>
     </div>
   </div>
-</section>
 
-<section>
-  <h2>Gestures</h2>
-  <div class="gesture-grid">
-    <div class="gesture-row">
-      <div class="cmd">FORWARD</div>
-      <div class="desc">Open palm facing camera</div>
+  <div class="right">
+    <!-- PWA install prompt -->
+    <div class="install-bar gone" id="install-bar">
+      <span style="flex:1">📲 Install as app for offline use</span>
+      <button class="install-btn" id="install-btn">Install</button>
     </div>
-    <div class="gesture-row">
-      <div class="cmd">STOP</div>
-      <div class="desc">Closed fist</div>
+
+    <div class="card">
+      <div class="card-label">Active Command</div>
+      <div class="cmd STOP" id="cmd-el">STOP</div>
     </div>
-    <div class="gesture-row">
-      <div class="cmd">LEFT</div>
-      <div class="desc">Index pointing left</div>
+
+    <div class="card">
+      <div class="dpad">
+        <div class="dpad-btn" id="d-FORWARD">▲</div>
+        <div class="dpad-row">
+          <div class="dpad-btn" id="d-LEFT">◀</div>
+          <div class="dpad-btn stp" id="d-STOP">■</div>
+          <div class="dpad-btn" id="d-RIGHT">▶</div>
+        </div>
+        <div class="dpad-btn" id="d-REVERSE">▼</div>
+      </div>
     </div>
-    <div class="gesture-row">
-      <div class="cmd">RIGHT</div>
-      <div class="desc">Index pointing right</div>
+
+    <!-- Car IP input — shown when no IP in URL -->
+    <div class="ip-card" id="ip-card">
+      <h3>Car IP Address</h3>
+      <div class="ip-row">
+        <input id="ip-input" type="text"
+               placeholder="192.168.43.100"
+               inputmode="decimal"/>
+        <button class="ip-btn" id="ip-btn">Connect</button>
+      </div>
+      <p class="ip-hint" id="ip-hint">
+        Check Serial Monitor after powering car
+      </p>
     </div>
-    <div class="gesture-row" style="grid-column:span 2">
-      <div class="cmd">REVERSE</div>
-      <div class="desc">Thumbs down</div>
+
+    <div class="card">
+      <div class="card-label">Connection</div>
+      <div class="conn-bar">
+        <div class="dot" id="conn-dot"></div>
+        <span class="conn-text" id="conn-txt">Enter car IP above</span>
+      </div>
     </div>
+
+    <button class="start-btn" id="start-btn">▶ Start Gesture Control</button>
   </div>
-</section>
+</main>
 
-<footer>
-  MIT License &nbsp;·&nbsp;
-  <a href="https://github.com/yash-patil-26/Gesture_Car"
-     style="color:var(--blue)">View on GitHub</a>
-</footer>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js" crossorigin="anonymous"></script>
+<script>
+// ── Register service worker ─────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(r => console.log('[PWA] Service worker registered'))
+    .catch(e => console.warn('[PWA] SW failed:', e));
+}
 
+// ── PWA install prompt ──────────────────────────────────────────
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-bar').classList.remove('gone');
+});
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById('install-bar').classList.add('gone');
+  }
+});
+
+// ── Config ───────────────────────────────────────────────────────
+// Read car IP from URL parameter (?car=192.168.43.100)
+// This is set by the ESP8266 redirect page automatically
+const urlParams = new URLSearchParams(window.location.search);
+let carIP = urlParams.get('car')
+         || localStorage.getItem('car_ip')
+         || '';
+
+const CONF_MIN = 0.85;
+const VOTES    = 3;
+
+// ── State ────────────────────────────────────────────────────────
+let session, labels=[], ws;
+let running=false, isBusy=false;
+let voteBuf=[], lastStable='STOP';
+let lastCmd=null, lastSent=0;
+let fpsCnt=0, fpsVal=0, fpsT=performance.now();
+let camera, hands, retryTimer, retryN=0;
+
+// ── DOM ──────────────────────────────────────────────────────────
+const canvas   = document.getElementById('cam-canvas');
+const ctx      = canvas.getContext('2d');
+const gBadge   = document.getElementById('g-badge');
+const fpsEl    = document.getElementById('fps-el');
+const cFill    = document.getElementById('conf-fill');
+const cPct     = document.getElementById('conf-pct');
+const cmdEl    = document.getElementById('cmd-el');
+const connDot  = document.getElementById('conn-dot');
+const connTxt  = document.getElementById('conn-txt');
+const startBtn = document.getElementById('start-btn');
+const pCam     = document.getElementById('p-cam');
+const pMl      = document.getElementById('p-ml');
+const pCar     = document.getElementById('p-car');
+const ipInput  = document.getElementById('ip-input');
+const ipCard   = document.getElementById('ip-card');
+const ipHint   = document.getElementById('ip-hint');
+const DPAD     = ['FORWARD','REVERSE','LEFT','RIGHT','STOP']
+  .reduce((o,k)=>(o[k]=document.getElementById('d-'+k),o),{});
+
+// Prefill IP input if known
+if (carIP) {
+  ipInput.value = carIP;
+  ipCard.querySelector('h3').textContent = 'Car IP (auto-detected)';
+  ipHint.textContent = 'IP detected from car — tap Connect';
+}
+
+// ── IP connect button ─────────────────────────────────────────
+document.getElementById('ip-btn').addEventListener('click', () => {
+  const ip = ipInput.value.trim();
+  if (!ip) { ipHint.textContent = 'Enter IP first'; return; }
+  carIP = ip;
+  localStorage.setItem('car_ip', ip);
+  retryN = 0;
+  connect();
+});
+
+// ── Overlays ─────────────────────────────────────────────────────
+const hide = id => document.getElementById(id).classList.add('gone');
+const hideAll = () => ['load-overlay','busy-overlay'].forEach(hide);
+document.getElementById('busy-retry').addEventListener('click',()=>{
+  isBusy=false; hide('busy-overlay'); retryN=0; connect();
+});
+
+// ── Connection ───────────────────────────────────────────────────
+function setConn(state, msg) {
+  const m = {ok:'on',busy:'err',off:'err',wait:''};
+  connDot.className = 'dot'+(m[state]?' '+m[state]:'');
+  connTxt.textContent = msg;
+  pCar.className = 'pill'+(m[state]?' '+m[state]:'');
+}
+
+function connect() {
+  if (isBusy || !carIP) return;
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer=null; }
+  if (ws) { try{ws.close();}catch(_){} ws=null; }
+  setConn('wait','Connecting to car…');
+  const wsURL = 'ws://'+carIP+':81';
+  try { ws = new WebSocket(wsURL); } catch(e) { retry(); return; }
+  ws.onopen  = () => { retryN=0; setConn('ok','Car connected ✓'); };
+  ws.onclose = () => { if(!isBusy){ setConn('off','Car disconnected'); retry(); } };
+  ws.onerror = () => setConn('off','Connection error — check IP');
+  ws.onmessage = e => {
+    if (e.data.startsWith('BUSY:')) {
+      isBusy=true; try{ws.close();}catch(_){}
+      setConn('busy','Car busy');
+      hide('load-overlay'); document.getElementById('busy-overlay').classList.remove('gone');
+    }
+  };
+}
+
+function retry() {
+  retryN++;
+  if (retryN > 10) { setConn('off','Cannot reach car — check IP'); return; }
+  retryTimer = setTimeout(connect, Math.min(2000*retryN, 10000));
+}
+
+// ── Cleanup ──────────────────────────────────────────────────────
+function cleanup() {
+  if(ws?.readyState===WebSocket.OPEN){ ws.send('STOP'); ws.close(1000); }
+  camera?.stop();
+}
+window.addEventListener('beforeunload', cleanup);
+window.addEventListener('pagehide', cleanup);
+document.addEventListener('visibilitychange',
+  ()=>{ if(document.hidden&&running) send('STOP'); });
+
+// ── Send ─────────────────────────────────────────────────────────
+function send(cmd) {
+  const now=Date.now();
+  if((cmd!==lastCmd||now-lastSent>300)&&ws?.readyState===WebSocket.OPEN){
+    ws.send(cmd);lastCmd=cmd;lastSent=now;
+  }
+}
+
+// ── Vote buffer ──────────────────────────────────────────────────
+function vote(label,conf,hand){
+  if(!hand||conf<CONF_MIN){voteBuf=[];lastStable='STOP';return 'STOP';}
+  const cmd=label.toUpperCase();
+  if(cmd==='STOP'){voteBuf=[];lastStable='STOP';return 'STOP';}
+  voteBuf.push(cmd);
+  if(voteBuf.length>VOTES)voteBuf.shift();
+  if(voteBuf.length>=VOTES&&voteBuf.every(v=>v===voteBuf[0]))
+    lastStable=voteBuf[0];
+  return lastStable;
+}
+
+// ── Features ─────────────────────────────────────────────────────
+function feat(lms){
+  const wx=lms[0].x,wy=lms[0].y,wz=lms[0].z,c=[];
+  for(const l of lms)c.push(l.x-wx,l.y-wy,l.z-wz);
+  const mx=Math.max(...c.map(Math.abs));
+  return mx<1e-6?null:new Float32Array(c.map(v=>v/mx));
+}
+
+// ── ONNX ─────────────────────────────────────────────────────────
+async function classify(f){
+  if(!session)return null;
+  try{
+    const t=new ort.Tensor('float32',f,[1,63]);
+    const r=await session.run({float_input:t});
+    const probs=r['probabilities']?.data
+              ||r[Object.keys(r).find(k=>k.toLowerCase().includes('prob'))]?.data;
+    if(!probs)return null;
+    let mi=0,mp=0;
+    probs.forEach((v,i)=>{if(v>mp){mp=v;mi=i;}});
+    return{label:labels[mi]||'?',conf:mp};
+  }catch{return null;}
+}
+
+// ── Landmarks ────────────────────────────────────────────────────
+const CONNS=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
+  [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+const TIPS=new Set([4,8,12,16,20]);
+function drawL(lms){
+  const w=canvas.width,h=canvas.height;
+  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.5;
+  for(const[a,b]of CONNS){
+    ctx.beginPath();
+    ctx.moveTo(lms[a].x*w,lms[a].y*h);
+    ctx.lineTo(lms[b].x*w,lms[b].y*h);
+    ctx.stroke();
+  }
+  lms.forEach((l,i)=>{
+    ctx.beginPath();
+    ctx.arc(l.x*w,l.y*h,i===0?6:TIPS.has(i)?5:3,0,Math.PI*2);
+    ctx.fillStyle=i===0?'#ffb300':TIPS.has(i)?'#00e676':'#4dabf7';
+    ctx.fill();
+  });
+}
+
+// ── MediaPipe ────────────────────────────────────────────────────
+async function onResults(res){
+  canvas.width=res.image.width;canvas.height=res.image.height;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(res.image,0,0);
+  let g='No hand',c=0,hand=false;
+  if(res.multiHandLandmarks?.length){
+    const lms=res.multiHandLandmarks[0];
+    hand=true;drawL(lms);
+    const f=feat(lms);
+    if(f){const r=await classify(f);if(r){g=r.label;c=r.conf;}}
+  }
+  const cmd=vote(g,c,hand);
+  gBadge.textContent=g;
+  const pct=Math.round(c*100);
+  cFill.style.width=pct+'%';
+  cFill.style.background=pct>=85?'#00e676':'#4dabf7';
+  cPct.textContent=pct+'%';
+  cmdEl.textContent=cmd;cmdEl.className='cmd '+cmd;
+  Object.entries(DPAD).forEach(([k,el])=>
+    el.classList.toggle('lit',k===cmd));
+  fpsCnt++;
+  const now=performance.now();
+  if(now-fpsT>=1000){fpsVal=fpsCnt;fpsCnt=0;fpsT=now;
+    fpsEl.textContent=fpsVal+' fps';}
+  if(running)send(cmd);
+}
+
+async function startCamera(){
+  if(!hands){
+    hands=new Hands({
+      locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+    });
+    hands.setOptions({maxNumHands:1,modelComplexity:1,
+      minDetectionConfidence:.7,minTrackingConfidence:.6});
+    hands.onResults(onResults);
+  }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia(
+      {video:{facingMode:'user',width:{ideal:640},height:{ideal:480}}});
+    const vid=document.createElement('video');
+    vid.srcObject=stream;
+    camera=new Camera(vid,{
+      onFrame:async()=>{await hands.send({image:vid});},
+      width:640,height:480
+    });
+    await camera.start();
+    pCam.classList.add('on');
+  }catch{
+    pCam.classList.add('err');
+    alert('Camera access denied — allow camera in browser settings.');
+  }
+}
+
+startBtn.addEventListener('click',async()=>{
+  if(!running){
+    running=true;
+    startBtn.textContent='⏹ Stop';
+    startBtn.classList.add('running');
+    await startCamera();
+  }else{
+    running=false;
+    startBtn.textContent='▶ Start Gesture Control';
+    startBtn.classList.remove('running');
+    send('STOP');camera?.stop();camera=null;
+    cmdEl.textContent='STOP';cmdEl.className='cmd STOP';
+    Object.values(DPAD).forEach(el=>el.classList.remove('lit'));
+  }
+});
+
+// ── Load model ───────────────────────────────────────────────────
+async function loadModel(){
+  const ltxt=document.getElementById('load-txt');
+  try{
+    ltxt.innerHTML='Downloading ML model…<br><small>Cached permanently after first load</small>';
+    session=await ort.InferenceSession.create('./model.onnx',
+      {executionProviders:['wasm']});
+    ltxt.innerHTML='Loading labels…';
+    labels=(await(await fetch('./labels.json')).json()).labels;
+    hideAll();
+    pMl.classList.add('on');
+    // Auto-connect if IP known
+    if(carIP) connect();
+  }catch(e){
+    ltxt.innerHTML='Load failed.<br><small>'+e.message+'</small><br><br><small>Make sure model.onnx is in the repo</small>';
+    pMl.classList.add('err');
+  }
+}
+loadModel();
+</script>
 </body>
 </html>

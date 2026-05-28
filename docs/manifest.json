@@ -1,0 +1,17 @@
+{
+  "name": "Gesture RC Car",
+  "short_name": "GestureCar",
+  "description": "Control RC car with hand gestures",
+  "start_url": "/Gesture_Car/",
+  "display": "standalone",
+  "background_color": "#0f1117",
+  "theme_color": "#00e676",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⬡</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

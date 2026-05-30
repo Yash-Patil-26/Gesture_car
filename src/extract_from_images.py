@@ -1,4 +1,3 @@
-# src/extract_from_images.py
 # ─────────────────────────────────────────────────────────────
 # Extract landmarks from pre-filtered images in external_images/
 #

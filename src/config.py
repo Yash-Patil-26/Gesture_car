@@ -1,4 +1,3 @@
-# src/config.py
 import os
 
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +14,7 @@ CM_IMAGE     = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
 
 # ── Gestures ───────────────────────────────────────────────────
 GESTURES            = ["forward", "reverse", "left", "right", "stop"]
-SAMPLES_PER_GESTURE = 200
+SAMPLES_PER_GESTURE = 10
 
 # ── MediaPipe ──────────────────────────────────────────────────
 NUM_LANDMARKS           = 21
@@ -47,7 +46,7 @@ VOTE_WINDOW          = 5
 # In AP mode ESP8266 IP is always 192.168.4.1 — never changes
 # WebSocket server on port 81
 # HTTP server (control app) on port 80
-ESP8266_IP      = "192.168.4.1"
+ESP8266_IP      = "0.0.0.0" 
 ESP8266_WS_PORT = 81
 ESP8266_HTTP    = 80
 

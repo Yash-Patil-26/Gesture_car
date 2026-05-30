@@ -1,4 +1,3 @@
-# src/controller.py
 # ─────────────────────────────────────────────────────────────
 # Real-time inference loop.
 # Webcam → MediaPipe → features → RF → vote → UDP → ESP32
@@ -8,13 +7,12 @@
 
 import cv2
 import pickle
-import socket
 import sys
 import os
 import time
 import numpy as np
 from collections import deque
-
+from websocket import create_connection
 import mediapipe as mp
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -23,7 +21,7 @@ from config import (
     CAM_INDEX, CAM_WIDTH, CAM_HEIGHT,
     MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE,
     CONFIDENCE_THRESHOLD, VOTE_WINDOW,
-    ESP8266_IP, ESP8266_PORT
+    ESP8266_IP, ESP8266_WS_PORT
 )
 from hand_utils import (build_hand_detector, process_frame,
                         get_landmark_list, extract_features,
@@ -46,14 +44,6 @@ def load_model():
     print(f"Classes: {list(encoder.classes_)}")
     return model, encoder
 
-
-def create_udp_socket():
-    """Create non-blocking UDP socket."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setblocking(False)
-    return sock
-
-
 class CommandSender:
     """
     Wraps UDP sending with two behaviours:
@@ -62,27 +52,36 @@ class CommandSender:
     2. Heartbeat — sends current command every 300ms even if
        unchanged, so ESP32 watchdog does not trigger on stable hold.
     """
-    def __init__(self, sock, ip, port):
-        self.sock         = sock
-        self.addr         = (ip, port)
+    def __init__(self, ip, port):
+        self.ws = None
         self.last_command = None
-        self.last_sent_t  = 0
-        self.HEARTBEAT_S  = 0.3    # seconds between heartbeat sends
+        self.last_sent_t = 0
+        self.ip = ip
+        self.port = port
+        self.connect()
 
-    def send(self, command: str):
-        now      = time.time()
-        changed  = (command != self.last_command)
-        heartbeat= (now - self.last_sent_t) > self.HEARTBEAT_S
+    def connect(self):
+        try:
+            self.ws = create_connection(
+                f"ws://{self.ip}:{self.port}"
+            )
+            print(f"Connected to ws://{self.ip}:{self.port}")
+        except Exception as e:
+            print("WebSocket connection failed:", e)
+            self.ws = None
 
-        if changed or heartbeat:
-            try:
-                self.sock.sendto(command.encode(), self.addr)
-                self.last_command = command
-                self.last_sent_t  = now
-            except Exception as e:
-                # Non-blocking socket raises BlockingIOError if
-                # send buffer full — safe to ignore in this context
-                pass
+    def send(self, command):
+        if self.ws is None:
+            return
+
+        try:
+            self.ws.send(command)
+        except Exception:
+            pass
+
+    def close(self):
+        if self.ws:
+            self.ws.close()
 
 
 class VoteBuffer:
@@ -146,7 +145,7 @@ def draw_hud(frame, label, confidence, stable_command, fps):
                 0.55, (140, 140, 140), 1)
 
     # ESP8266 target
-    cv2.putText(frame, f"ESP8266: {ESP8266_IP}:{ESP8266_PORT}",
+    cv2.putText(frame, f"ESP8266: {ESP8266_IP}:{ESP8266_WS_PORT}",
                 (20, h - 16), cv2.FONT_HERSHEY_SIMPLEX,
                 0.45, (100, 100, 100), 1)
 
@@ -158,8 +157,7 @@ def main():
 
     model, encoder = load_model()
     detector       = build_hand_detector(MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE)
-    sock           = create_udp_socket()
-    sender         = CommandSender(sock, ESP8266_IP, ESP8266_PORT)
+    sender = CommandSender(ESP8266_IP, ESP8266_WS_PORT)
     vote_buf = FastVoteBuffer(CONFIDENCE_THRESHOLD)
 
     cap = cv2.VideoCapture(CAM_INDEX)
@@ -171,7 +169,7 @@ def main():
         print(f"ERROR: Cannot open camera {CAM_INDEX}")
         return
 
-    print(f"\nSending commands to ESP8266 at {ESP8266_IP}:{ESP8266_PORT}")
+    print(f"\nSending commands to ESP8266 at {ESP8266_IP}:{ESP8266_WS_PORT}")
     print("Press Q to quit.\n")
 
     # FPS tracking
@@ -236,7 +234,7 @@ def main():
     cap.release()
     cv2.destroyAllWindows()
     detector.close()
-    sock.close()
+    sender.close()
     print("Controller stopped. STOP sent to ESP8266.")
 
 

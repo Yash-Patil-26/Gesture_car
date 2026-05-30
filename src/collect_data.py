@@ -1,4 +1,3 @@
-# src/collect_data.py
 # ─────────────────────────────────────────────────────────────
 # Interactive data collection with user-defined sample count
 # and minimum hold-time enforcement per gesture.

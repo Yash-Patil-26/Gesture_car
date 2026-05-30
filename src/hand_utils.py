@@ -1,4 +1,3 @@
-# src/hand_utils.py
 # ─────────────────────────────────────────────────────────────
 # Shared utilities: landmark extraction + asymmetric vote buffer.
 # ─────────────────────────────────────────────────────────────

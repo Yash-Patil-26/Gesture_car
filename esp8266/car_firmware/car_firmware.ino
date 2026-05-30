@@ -1,4 +1,3 @@
-// esp8266/car_firmware.ino
 // Complete rewrite — self-contained HTTP + WebSocket
 // Phone opens http://[car-ip] directly
 // No HTTPS context = no mixed content block

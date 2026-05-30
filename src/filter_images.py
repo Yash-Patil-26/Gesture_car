@@ -1,4 +1,3 @@
-# src/filter_images.py
 # ─────────────────────────────────────────────────────────────
 # ONE-TIME IMAGE QUALITY FILTER.
 #
@@ -39,7 +38,7 @@ import mediapipe as mp
 #   - Enough diversity for a robust Random Forest
 #   - Fast enough extraction and training
 #   - Total: 10,000 images across 5 gestures
-KEEP_PER_GESTURE = 2000
+KEEP_PER_GESTURE = 1000
 
 # MediaPipe detection confidence threshold.
 # Images below this are automatically scored zero — likely bad.

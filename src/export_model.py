@@ -1,4 +1,3 @@
-# src/export_model.py
 # ─────────────────────────────────────────────────────────────
 # Convert trained sklearn Random Forest → ONNX format.
 # ONNX runs in browsers via onnxruntime-web.

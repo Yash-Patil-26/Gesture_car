@@ -1,4 +1,3 @@
-# src/train_model.py
 # ─────────────────────────────────────────────────────────────
 # Load dataset → train classifier → evaluate → save model.
 # Run ONCE after data collection. Re-run anytime you add data.

@@ -1,36 +1,38 @@
 # Gesture RC Car
 
-Control a real RC car with hand gestures — using your phone's
-front camera, on-device ML inference, and WiFi.
+Control a real RC car with hand gestures using computer vision
+and machine learning. Two control modes — laptop or phone.
 
-**Live demo →** `https://Yash-Patil-26.github.io/gesture-car`
-
-No laptop needed during demo. No server. Works anywhere.
+**Live demo page →** `https://yash-patil-26.github.io/Gesture_Car/`
 
 ---
 
-## How It Works
-Phone camera → MediaPipe.js (landmarks) → ONNX model (gesture)
-→ WebSocket → ESP8266 → L298N → 4 motors
+## Control Modes
 
-The ML model runs entirely in the browser. The ESP8266 creates
-its own WiFi hotspot. Phone connects to that hotspot, opens the
-URL, and controls the car. Closing the tab stops the car.
+### Mode A — Laptop controls car (local)
+Laptop webcam → MediaPipe → Random Forest → Flask → ESP8266 → motors
+Laptop and car must be on the same WiFi network.
+Run `python src/app.py` on laptop. Open `http://localhost:5000`.
+
+### Mode B — Phone controls car (anywhere via cloud)
+Phone camera → MediaPipe.js → ONNX model → MQTT → HiveMQ cloud
+↓
+ESP8266 → motors
+Works from anywhere with internet. Car needs any WiFi with internet.
+Open `https://yash-patil-26.github.io/Gesture_Car/` on phone.
 
 ---
 
-## Demo — Step by Step
+## Demo — Mode B (Phone)
 
 | Step | Action |
 |---|---|
-| 1 | Power on the car |
-| 2 | Connect phone WiFi to **GestureCar** (open, no password) |
-| 3 | Open `https://yourusername.github.io/gesture-car` |
-| 4 | App auto-connects to car — no IP typing needed |
-| 5 | Tap **Start** → show hand to front camera |
-
-If another person is already controlling the car, you will see
-**"Car Busy"** — ask them to close the app first.
+| 1 | Power on car — ESP8266 connects to WiFi and HiveMQ broker |
+| 2 | Open `https://yash-patil-26.github.io/Gesture_Car/` on phone |
+| 3 | Wait ~15s for ML model to load (cached permanently after) |
+| 4 | Green pills appear: Cam · ML · Broker · Car |
+| 5 | Tap Start → show hand to front camera |
+| 6 | Car moves. Close tab → car stops automatically. |
 
 ---
 
@@ -50,7 +52,7 @@ If another person is already controlling the car, you will see
 
 | Component | Detail |
 |---|---|
-| ESP8266 NodeMCU | WiFi AP + WebSocket server |
+| ESP8266 NodeMCU | WiFi + MQTT client + motor control |
 | L298N motor driver | Drives 4 TT motors |
 | 2× 18650 battery (7.4V series) | Power supply |
 | 4× TT motors + 65mm wheels | Movement |
@@ -59,94 +61,133 @@ If another person is already controlling the car, you will see
 
 ### Pin Mapping
 
-| NodeMCU | L298N | Function |
-|---|---|---|
-| D1 (GPIO5) | IN1 | Left forward |
-| D2 (GPIO4) | IN2 | Left reverse |
-| D5 (GPIO14) | IN3 | Right forward |
-| D6 (GPIO12) | IN4 | Right reverse |
-| D7 (GPIO13) | ENA | Left speed (PWM) |
-| D8 (GPIO15) | ENB | Right speed (PWM) |
-| VIN | 5V out | Logic power |
-| GND | GND | Common ground |
+| NodeMCU | GPIO | L298N | Function |
+|---|---|---|---|
+| D1 | GPIO5 | IN1 | Left forward |
+| D2 | GPIO4 | IN2 | Left reverse |
+| D5 | GPIO14 | IN3 | Right forward |
+| D6 | GPIO12 | IN4 | Right reverse |
+| D7 | GPIO13 | ENA | Left speed PWM |
+| D8 | GPIO15 | ENB | Right speed PWM |
+| VIN | — | 5V out | Power from L298N |
+| GND | — | GND | Common ground |
 
 ---
 
-## Software Pipeline
+## Software Setup
 
+### Prerequisites
+- Python 3.9–3.11
+- Arduino IDE with ESP8266 board package
+- HiveMQ Cloud free account (for Mode B)
+
+### Install Python dependencies
 ```bash
-# 1. Setup
-python -m venv venv && venv\Scripts\activate
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # Mac/Linux
 pip install -r requirements.txt
+```
 
-# 2. Filter training images (one-time, deletes bad images permanently)
-python src/filter_images.py --dry-run
-python src/filter_images.py
-
-# 3. Extract landmarks
-python src/extract_from_images.py
-
-# 4. Record your own gestures
+### Training pipeline (run once)
+```bash
+# Collect webcam gesture samples
 python src/collect_data.py
 
-# 5. Train
+# Train Random Forest classifier
 python src/train_model.py
 
-# 6. Export to ONNX
+# Export to ONNX for browser inference
 python src/export_model.py
 
-# 7. Push to GitHub → GitHub Pages auto-deploys
-git add web/model.onnx web/labels.json
-git commit -m "Update model"
-git push
+# Run local dashboard (Mode A)
+python src/app.py
 ```
 
 ---
 
-## ESP8266 Firmware
+## ESP8266 Firmware Setup
 
-1. Install library: Arduino IDE → Library Manager → **WebSockets** by Markus Sattler
-2. Board: `NodeMCU 1.0 (ESP-12E Module)`
-3. Upload `esp8266/car_firmware.ino`
-4. Open Serial Monitor at 115200 baud to confirm WiFi started
+### Required Arduino libraries
+- WebSockets by Markus Sattler
+- PubSubClient by Nick O'Leary
+
+### Configuration (update before flashing)
+```cpp
+// WiFi credentials
+const char* WIFI_SSID = "YourWiFiName";
+const char* WIFI_PASS = "YourWiFiPassword";
+
+// HiveMQ Cloud (get free at console.hivemq.cloud)
+const char* MQTT_HOST = "xxxxxxxx.s1.eu.hivemq.cloud";
+const char* MQTT_PASS = "YourMQTTPassword";
+```
+
+### Flash steps
+1. Open `esp8266/car_firmware.ino` in Arduino IDE
+2. Update credentials above
+3. Tools → Board → `NodeMCU 1.0 (ESP-12E Module)`
+4. Upload
+5. Open Serial Monitor at 115200 baud — confirm connected
 
 ---
 
-## ML Model
+## ML Model Details
 
 | Property | Value |
 |---|---|
 | Algorithm | Random Forest (100 trees) |
 | Input | 63 features (21 landmarks × x,y,z normalized) |
-| Classes | 5 gestures |
-| Training data | ~44,000 samples |
+| Classes | 5 (forward, reverse, left, right, stop) |
 | CV accuracy | 97–99% |
-| Format | ONNX opset 12 (runs in browser via onnxruntime-web) |
+| Inference | <1ms Python · ~5ms ONNX browser |
+| Cloud latency | ~50–100ms via MQTT |
+
+---
+
+## Architecture
+Training (laptop, done once):
+Images → filter → extract landmarks → CSV → Random Forest → ONNX
+Mode A runtime:
+Laptop cam → MediaPipe → RF (Python) → WebSocket → ESP8266
+Mode B runtime:
+Phone cam → MediaPipe.js → ONNX (browser) → MQTT WSS
+↓
+HiveMQ cloud broker
+↓
+ESP8266 MQTT client → L298N → motors
 
 ---
 
 ## Project Structure
 gesture-car/
-├── esp8266/car_firmware.ino     # ESP8266 firmware
+├── esp8266/
+│   ├── car_firmware.ino     # ESP8266 — MQTT client + motors
+│   └── pin_reference.md
 ├── src/
-│   ├── config.py                # All constants
-│   ├── hand_utils.py            # MediaPipe + vote buffer
-│   ├── collect_data.py          # Webcam data collection
-│   ├── filter_images.py         # Image quality filter
-│   ├── extract_from_images.py   # Images → landmark CSV
-│   ├── train_model.py           # Train Random Forest
-│   ├── export_model.py          # Export to ONNX
-│   └── app.py                   # Local dev dashboard
-├── web/
-│   ├── index.html               # Mobile web app
-│   ├── model.onnx               # Trained model
-│   └── labels.json              # Class labels
-├── outputs/confusion_matrix.png
-├── requirements.txt
-└── .gitignore
+│   ├── config.py            # All constants
+│   ├── hand_utils.py        # MediaPipe + FastVoteBuffer
+│   ├── collect_data.py      # Webcam data collection
+│   ├── filter_images.py     # Image quality filter (one-time)
+│   ├── extract_from_images.py
+│   ├── train_model.py       # Train Random Forest
+│   ├── export_model.py      # Export to ONNX
+│   └── app.py               # Mode A local dashboard
+├── docs/
+│   ├── index.html           # Mode B phone control app
+│   ├── model.onnx           # Trained model for browser
+│   ├── labels.json          # Gesture class labels
+│   ├── sw.js                # PWA service worker
+│   └── manifest.json        # PWA manifest
+├── templates/               # Mode A local dashboard UI
+├── static/                  # Mode A CSS + JS
+├── outputs/
+│   └── confusion_matrix.png
+├── .gitignore
+├── README.md
+└── requirements.txt
 
 ---
 
 ## License
-
 MIT

@@ -1,3 +1,4 @@
+# src/config.py
 import os
 
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,7 +15,7 @@ CM_IMAGE     = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
 
 # ── Gestures ───────────────────────────────────────────────────
 GESTURES            = ["forward", "reverse", "left", "right", "stop"]
-SAMPLES_PER_GESTURE = 10
+SAMPLES_PER_GESTURE = 200  # was 10 — that was a test value, fixed
 
 # ── MediaPipe ──────────────────────────────────────────────────
 NUM_LANDMARKS           = 21
@@ -42,14 +43,22 @@ MLP_MAX_ITER        = 500
 CONFIDENCE_THRESHOLD = 0.85
 VOTE_WINDOW          = 5
 
-# ── ESP8266 AP mode ────────────────────────────────────────────
-# In AP mode ESP8266 IP is always 192.168.4.1 — never changes
-# WebSocket server on port 81
-# HTTP server (control app) on port 80
-ESP8266_IP      = "0.0.0.0" 
+# ── MQTT broker (HiveMQ Cloud free tier) ───────────────────────
+# Used by both Mode A (laptop) and Mode B (phone)
+# Get free credentials at console.hivemq.cloud
+MQTT_BROKER   = "xxxxxxxx.s1.eu.hivemq.cloud"  # update after setup
+MQTT_PORT     = 8883                             # TLS port
+MQTT_USER     = "gesturecar"
+MQTT_PASSWORD = "YourHiveMQPassword"             # update after setup
+MQTT_TOPIC    = "gesture/car/command"
+MQTT_STATUS   = "gesture/car/status"
+
+# ── ESP8266 reference (for documentation only) ─────────────────
+# ESP8266 connects to MQTT broker — no direct IP needed from laptop
+# Physical WebSocket port on ESP8266 (local fallback only)
 ESP8266_WS_PORT = 81
 ESP8266_HTTP    = 80
 
-# ── Flask local dev server ─────────────────────────────────────
+# ── Flask local dev server (Mode A) ───────────────────────────
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000

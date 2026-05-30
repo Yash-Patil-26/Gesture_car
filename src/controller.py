@@ -1,8 +1,11 @@
+# src/controller.py
 # ─────────────────────────────────────────────────────────────
-# Real-time inference loop.
-# Webcam → MediaPipe → features → RF → vote → UDP → ESP32
+# Mode A — Standalone laptop gesture controller.
+# No Flask server. Just webcam window + MQTT commands.
+# Lighter than app.py — use for quick testing.
 #
-# Run AFTER training: python src/controller.py
+# Run: python src/controller.py
+# Press Q to quit.
 # ─────────────────────────────────────────────────────────────
 
 import cv2
@@ -11,153 +14,221 @@ import sys
 import os
 import time
 import numpy as np
-from collections import deque
-from websocket import create_connection
-import mediapipe as mp
+import paho.mqtt.client as mqtt
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import mediapipe as mp
 from config import (
     MODEL_FILE, ENCODER_FILE,
     CAM_INDEX, CAM_WIDTH, CAM_HEIGHT,
     MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE,
-    CONFIDENCE_THRESHOLD, VOTE_WINDOW,
-    ESP8266_IP, ESP8266_WS_PORT
+    CONFIDENCE_THRESHOLD,
+    MQTT_BROKER, MQTT_PORT, MQTT_USER,
+    MQTT_PASSWORD, MQTT_TOPIC, MQTT_STATUS
 )
-from hand_utils import (build_hand_detector, process_frame,
-                        get_landmark_list, extract_features,
-                        FastVoteBuffer)
+from hand_utils import (
+    build_hand_detector, process_frame,
+    get_landmark_list, extract_features,
+    FastVoteBuffer
+)
 
-mp_draw        = mp.solutions.drawing_utils
-mp_hands_module= mp.solutions.hands
+mp_draw         = mp.solutions.drawing_utils
+mp_hands_module = mp.solutions.hands
 
+CONTROLLER_ID = "laptop_controller"
+
+
+# ── Model loader ───────────────────────────────────────────────
 
 def load_model():
-    """Load trained RF model and label encoder from disk."""
     if not os.path.exists(MODEL_FILE):
         raise FileNotFoundError(
-            f"Model not found at {MODEL_FILE}.\n"
-            "Run train_model.py first."
+            f"Model not found: {MODEL_FILE}\n"
+            "Run: python src/train_model.py"
         )
     with open(MODEL_FILE,   'rb') as f: model   = pickle.load(f)
     with open(ENCODER_FILE, 'rb') as f: encoder = pickle.load(f)
-    print(f"Model loaded: {MODEL_FILE}")
-    print(f"Classes: {list(encoder.classes_)}")
+    print(f"[ML] Model loaded — classes: {list(encoder.classes_)}")
     return model, encoder
 
-class CommandSender:
+
+# ── MQTT command sender ────────────────────────────────────────
+
+class MQTTSender:
     """
-    Wraps UDP sending with two behaviours:
-    1. Deduplication — only sends when command changes.
-       Prevents flooding ESP32 with identical packets 30x/sec.
-    2. Heartbeat — sends current command every 300ms even if
-       unchanged, so ESP32 watchdog does not trigger on stable hold.
+    Publishes gesture commands to HiveMQ broker.
+    ESP8266 subscribes to same topic and drives motors.
+
+    Deduplication: only publishes when command changes
+    or heartbeat interval (400ms) is exceeded.
+    This prevents flooding the broker at 30fps.
     """
-    def __init__(self, ip, port):
-        self.ws = None
-        self.last_command = None
-        self.last_sent_t = 0
-        self.ip = ip
-        self.port = port
-        self.connect()
+
+    HEARTBEAT_S = 0.4
+
+    def __init__(self):
+        self.client    = mqtt.Client(
+            client_id     = CONTROLLER_ID,
+            clean_session = True
+        )
+        self.client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+        self.client.tls_set()   # HiveMQ requires TLS
+
+        self.connected   = False
+        self.car_ready   = False
+        self.last_cmd    = None
+        self.last_sent   = 0
+
+        self.client.on_connect    = self._on_connect
+        self.client.on_disconnect = self._on_disconnect
+        self.client.on_message    = self._on_message
+
+    def _on_connect(self, client, userdata, flags, rc):
+        if rc == 0:
+            self.connected = True
+            client.subscribe(MQTT_STATUS)
+            # Claim the car
+            client.publish(
+                MQTT_TOPIC,
+                f"{CONTROLLER_ID}:CONNECT",
+                qos=0
+            )
+            print("[MQTT] Connected to broker")
+            print("[MQTT] Waiting for car to respond...")
+        else:
+            print(f"[MQTT] Connection refused: rc={rc}")
+
+    def _on_disconnect(self, client, userdata, rc):
+        self.connected = False
+        self.car_ready = False
+        print("[MQTT] Disconnected from broker")
+
+    def _on_message(self, client, userdata, msg):
+        m = msg.payload.decode()
+        if f"READY:{CONTROLLER_ID}" in m:
+            self.car_ready = True
+            print("[MQTT] Car is ready — you can start gesturing")
+        elif "BUSY" in m:
+            self.car_ready = False
+            print("[MQTT] Car is busy — another controller is active")
+        elif m == "FREE":
+            self.car_ready = False
 
     def connect(self):
         try:
-            self.ws = create_connection(
-                f"ws://{self.ip}:{self.port}"
-            )
-            print(f"Connected to ws://{self.ip}:{self.port}")
+            self.client.connect(MQTT_BROKER, MQTT_PORT, keepalive=30)
+            self.client.loop_start()
+            print(f"[MQTT] Connecting to {MQTT_BROKER}...")
         except Exception as e:
-            print("WebSocket connection failed:", e)
-            self.ws = None
+            print(f"[MQTT] Failed to connect: {e}")
 
-    def send(self, command):
-        if self.ws is None:
+    def send(self, command: str):
+        """
+        Publish command to MQTT topic.
+        Only sends when command changes or heartbeat fires.
+        Silently skips if not connected or car not ready.
+        """
+        if not self.connected or not self.car_ready:
             return
 
-        try:
-            self.ws.send(command)
-        except Exception:
-            pass
+        now     = time.time()
+        changed = command != self.last_cmd
+        beat    = now - self.last_sent > self.HEARTBEAT_S
 
-    def close(self):
-        if self.ws:
-            self.ws.close()
+        if changed or beat:
+            payload = f"{CONTROLLER_ID}:{command}"
+            self.client.publish(MQTT_TOPIC, payload, qos=0)
+            self.last_cmd  = command
+            self.last_sent = now
 
-
-class VoteBuffer:
-    """
-    Sliding window majority vote over last VOTE_WINDOW predictions.
-    Returns a command only when all votes in the window agree.
-    Clears on low-confidence input.
-    """
-    def __init__(self, window: int):
-        self.buffer = deque(maxlen=window)
-        self.window = window
-
-    def push(self, label: str):
-        self.buffer.append(label)
-
-    def clear(self):
-        self.buffer.clear()
-
-    def get_stable(self):
-        """
-        Returns label if all window entries agree, else None.
-        Window must be full before returning anything.
-        """
-        if len(self.buffer) < self.window:
-            return None
-        first = self.buffer[0]
-        if all(v == first for v in self.buffer):
-            return first
-        return None
+    def disconnect(self):
+        if self.connected:
+            self.client.publish(
+                MQTT_TOPIC,
+                f"{CONTROLLER_ID}:DISCONNECT",
+                qos=0
+            )
+            self.client.publish(
+                MQTT_TOPIC,
+                f"{CONTROLLER_ID}:STOP",
+                qos=0
+            )
+        self.client.loop_stop()
+        self.client.disconnect()
 
 
-def draw_hud(frame, label, confidence, stable_command, fps):
-    """Render all status information onto the frame."""
+# ── HUD overlay ────────────────────────────────────────────────
+
+def draw_hud(frame, label, confidence, command, fps, car_ready):
     h, w = frame.shape[:2]
 
-    # Gesture label — top left
-    color = (0, 230, 120) if confidence >= CONFIDENCE_THRESHOLD else (80, 80, 220)
-    cv2.putText(frame, f"Gesture : {label}",
-                (20, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+    # Top bar
+    cv2.rectangle(frame, (0, 0), (w, 90), (18, 18, 18), -1)
+
+    # Gesture label
+    color = (0, 220, 100) if confidence >= CONFIDENCE_THRESHOLD \
+            else (80, 80, 220)
+    cv2.putText(frame, f"Gesture: {label}",
+                (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.85, color, 2)
 
     # Confidence bar
-    bar_w = int(confidence * 220)
-    cv2.rectangle(frame, (20, 60), (240, 76), (50, 50, 50), -1)
-    cv2.rectangle(frame, (20, 60), (20 + bar_w, 76), color, -1)
-    cv2.putText(frame, f"{confidence:.2f}",
-                (248, 74), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180,180,180), 1)
+    bar_w = int(confidence * 200)
+    cv2.rectangle(frame, (16, 50), (216, 66), (50, 50, 50), -1)
+    cv2.rectangle(frame, (16, 50), (16 + bar_w, 66), color, -1)
+    cv2.putText(frame, f"{confidence:.0%}",
+                (224, 64), cv2.FONT_HERSHEY_SIMPLEX, 0.52,
+                (180, 180, 180), 1)
 
     # Active command
-    if stable_command:
-        cv2.putText(frame, f"CMD: {stable_command}",
-                    (20, 108), cv2.FONT_HERSHEY_SIMPLEX, 1.0,
-                    (0, 255, 180), 2)
+    cmd_color = {
+        "FORWARD": (0, 220, 100),
+        "REVERSE": (77, 171, 247),
+        "LEFT":    (179, 157, 219),
+        "RIGHT":   (255, 179, 0),
+        "STOP":    (255, 82, 82),
+    }.get(command, (200, 200, 200))
 
-    # Threshold line on confidence bar
-    thresh_x = 20 + int(CONFIDENCE_THRESHOLD * 220)
-    cv2.line(frame, (thresh_x, 58), (thresh_x, 78), (255, 255, 100), 1)
+    cv2.putText(frame, command,
+                (w - 180, 56), cv2.FONT_HERSHEY_SIMPLEX,
+                1.1, cmd_color, 2)
 
-    # FPS — bottom right
+    # Bottom bar
+    cv2.rectangle(frame, (0, h - 30), (w, h), (18, 18, 18), -1)
+
+    # Car status
+    car_color = (0, 220, 100) if car_ready else (255, 82, 82)
+    car_text  = "Car: READY" if car_ready else "Car: waiting..."
+    cv2.putText(frame, car_text,
+                (16, h - 9), cv2.FONT_HERSHEY_SIMPLEX,
+                0.45, car_color, 1)
+
+    # FPS
     cv2.putText(frame, f"FPS: {fps:.1f}",
-                (w - 100, h - 16), cv2.FONT_HERSHEY_SIMPLEX,
-                0.55, (140, 140, 140), 1)
+                (w - 100, h - 9), cv2.FONT_HERSHEY_SIMPLEX,
+                0.45, (140, 140, 140), 1)
 
-    # ESP8266 target
-    cv2.putText(frame, f"ESP8266: {ESP8266_IP}:{ESP8266_WS_PORT}",
-                (20, h - 16), cv2.FONT_HERSHEY_SIMPLEX,
-                0.45, (100, 100, 100), 1)
 
+# ── Main ───────────────────────────────────────────────────────
 
 def main():
-    print("═" * 50)
-    print("  Gesture Car — Controller")
-    print("═" * 50)
+    print("═" * 52)
+    print("  Gesture Car — Mode A Controller (standalone)")
+    print("═" * 52)
 
     model, encoder = load_model()
-    detector       = build_hand_detector(MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE)
-    sender = CommandSender(ESP8266_IP, ESP8266_WS_PORT)
+    detector       = build_hand_detector(
+        MP_DETECTION_CONFIDENCE,
+        MP_TRACKING_CONFIDENCE
+    )
+
+    sender   = MQTTSender()
+    sender.connect()
+
+    # Give broker 2 seconds to connect before opening camera
+    print("[WAIT] Connecting to broker...")
+    time.sleep(2)
+
     vote_buf = FastVoteBuffer(CONFIDENCE_THRESHOLD)
 
     cap = cv2.VideoCapture(CAM_INDEX)
@@ -166,23 +237,24 @@ def main():
     cap.set(cv2.CAP_PROP_FPS,          30)
 
     if not cap.isOpened():
-        print(f"ERROR: Cannot open camera {CAM_INDEX}")
+        print(f"[ERROR] Cannot open camera {CAM_INDEX}")
+        print("Change CAM_INDEX in config.py and try again.")
+        sender.disconnect()
         return
 
-    print(f"\nSending commands to ESP8266 at {ESP8266_IP}:{ESP8266_WS_PORT}")
-    print("Press Q to quit.\n")
+    print("\n[CAM] Camera opened")
+    print("[INFO] Press Q to quit\n")
 
-    # FPS tracking
-    fps      = 0.0
-    t_prev   = time.time()
-    label    = "—"
-    confidence    = 0.0
-    stable_cmd    = None
+    fps    = 0.0
+    t_prev = time.time()
+    label  = "—"
+    confidence = 0.0
+    command    = "STOP"
 
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Camera read failed — retrying...")
+            time.sleep(0.05)
             continue
 
         frame     = cv2.flip(frame, 1)
@@ -195,49 +267,56 @@ def main():
                 frame,
                 result.multi_hand_landmarks[0],
                 mp_hands_module.HAND_CONNECTIONS,
-                mp_draw.DrawingSpec(color=(0,180,255), thickness=2, circle_radius=3),
-                mp_draw.DrawingSpec(color=(255,255,255), thickness=1)
+                mp_draw.DrawingSpec(
+                    color=(0, 180, 255),
+                    thickness=2,
+                    circle_radius=3
+                ),
+                mp_draw.DrawingSpec(
+                    color=(255, 255, 255),
+                    thickness=1
+                )
             )
 
-            # Extract → classify
+            # Classify
             features   = extract_features(lms).reshape(1, -1)
             proba      = model.predict_proba(features)[0]
             class_idx  = int(np.argmax(proba))
             confidence = float(proba[class_idx])
             label      = encoder.classes_[class_idx]
 
-            command = vote_buf.update(label, confidence, lms is not None)
-            sender.send(command)
-            stable_cmd = command
+            # Vote → command
+            command = vote_buf.update(label, confidence, True)
 
         else:
-            # No hand detected
-            vote_buf.clear()
+            command    = vote_buf.update("stop", 0.0, False)
             label      = "No hand"
             confidence = 0.0
-            stable_cmd = None
-            sender.send("STOP")
+
+        # Send via MQTT
+        sender.send(command)
 
         # FPS
         t_now  = time.time()
         fps    = 0.9 * fps + 0.1 * (1.0 / max(t_now - t_prev, 1e-6))
         t_prev = t_now
 
-        draw_hud(frame, label, confidence, stable_cmd, fps)
-        cv2.imshow("Gesture Controller", frame)
+        draw_hud(frame, label, confidence, command, fps, sender.car_ready)
+        cv2.imshow("Gesture Car — Mode A", frame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
     # Cleanup
+    print("\n[EXIT] Stopping...")
     sender.send("STOP")
+    time.sleep(0.3)
+    sender.disconnect()
     cap.release()
     cv2.destroyAllWindows()
     detector.close()
-    sender.close()
-    print("Controller stopped. STOP sent to ESP8266.")
+    print("[EXIT] Done.")
 
 
 if __name__ == "__main__":
     main()
-    

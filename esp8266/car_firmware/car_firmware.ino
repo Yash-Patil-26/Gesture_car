@@ -1,4 +1,3 @@
-// esp8266/car_firmware.ino
 // Mode B: MQTT client connecting to HiveMQ cloud
 // ESP8266 subscribes to command topic
 // Receives FORWARD/STOP/LEFT/RIGHT/REVERSE from phone
@@ -155,7 +154,8 @@ void setup() {
   }
   Serial.println("\n✓ WiFi connected: " + WiFi.localIP().toString());
 
-  // Connect MQTT
+  // REPLACE WITH THIS (add setBufferSize BEFORE setServer):
+  mqtt.setBufferSize(1024);  // ← THIS LINE FIXES THE DOTS PROBLEM
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(onMessage);
   mqtt.setKeepAlive(30);

@@ -57,6 +57,15 @@ logs/
 htmlcov/
 .coverage
 
+# Explicitly untrack these if accidentally committed
+data/
+model/*.pkl
+env/
+src/__pycache__/
+*.pyc
+model.onnx
+# docs/model.onnx is correct location — do NOT ignore docs/
+
 # ── web/model.onnx — INCLUDE this (needed for GitHub Pages) ───
 # model.onnx is NOT ignored — it must be in the repo for the
 # web app to work. It will be ~5–15MB which is fine for GitHub.

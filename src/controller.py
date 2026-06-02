@@ -1,4 +1,3 @@
-# src/controller.py
 # ─────────────────────────────────────────────────────────────
 # Mode A — Standalone laptop gesture controller.
 # No Flask server. Just webcam window + MQTT commands.

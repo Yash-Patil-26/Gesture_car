@@ -1,11 +1,18 @@
+# ─────────────────────────────────────────────────────────────
+# Central configuration — all constants in one place.
+# Change values here only — never hardcode elsewhere.
+# ─────────────────────────────────────────────────────────────
+
 import os
 
+# ── Paths ──────────────────────────────────────────────────────
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR     = os.path.join(BASE_DIR, "data")
 MODEL_DIR    = os.path.join(BASE_DIR, "model")
 OUTPUT_DIR   = os.path.join(BASE_DIR, "outputs")
 TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR   = os.path.join(BASE_DIR, "static")
+DOCS_DIR     = os.path.join(BASE_DIR, "docs")
 
 DATA_CSV     = os.path.join(DATA_DIR,   "gesture_data.csv")
 MODEL_FILE   = os.path.join(MODEL_DIR,  "gesture_model.pkl")
@@ -42,15 +49,17 @@ MLP_MAX_ITER        = 500
 CONFIDENCE_THRESHOLD = 0.85
 VOTE_WINDOW          = 5
 
-# ── MQTT (HiveMQ Cloud) ────────────────────────────────────────
-# Credentials match firmware exactly — read from here by app.py and controller.py
-MQTT_BROKER   = "29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud"
-MQTT_PORT     = 8883
-MQTT_USER     = "gesturecar"
-MQTT_PASSWORD = "#Yash@2026"
-MQTT_TOPIC    = "gesture/car/command"
-MQTT_STATUS   = "gesture/car/status"
+# ── MQTT — HiveMQ Cloud ────────────────────────────────────────
+# Used by both app.py (laptop) and ESP8266 firmware
+# Update MQTT_BROKER with your actual cluster URL
+MQTT_BROKER      = "29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud"
+MQTT_PORT_TLS    = 8883   # ESP8266 TCP + TLS
+MQTT_PORT_WSS    = 8884   # Browser WebSocket + TLS
+MQTT_USERNAME    = "Mudron"
+MQTT_PASSWORD    = "26crGesture"
+MQTT_TOPIC_CMD   = "gesturecar/command"
+MQTT_TOPIC_STATUS= "gesturecar/status"
 
-# ── Flask ──────────────────────────────────────────────────────
+# ── Flask local dev server ─────────────────────────────────────
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000

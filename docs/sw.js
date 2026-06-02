@@ -1,69 +1,78 @@
 // docs/sw.js
-// Service worker — caches all app assets permanently
-// After first load with internet, app works completely offline
+// Service Worker — caches all app assets permanently
+// After first load with internet, app runs offline
+// model.onnx cached on first fetch — loads instantly after
 
-const CACHE = 'gesture-car-v1';
+const CACHE_NAME = 'gesture-car-v3';
 
-// Everything to cache on install
-const ASSETS = [
+// Assets to pre-cache on install
+const PRECACHE = [
   '/Gesture_Car/',
   '/Gesture_Car/index.html',
-  '/Gesture_Car/model.onnx',
-  '/Gesture_Car/labels.json',
-  // MediaPipe from CDN
-  'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js',
-  'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
-  'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js',
-  // MediaPipe WASM files
-  'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands_solution_packed_assets_loader.js',
-  'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands_solution_simd_wasm_bin.js',
+  '/Gesture_Car/manifest.json',
 ];
 
-// Install — cache all assets
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(cache => {
-      console.log('[SW] Caching all assets');
-      // Cache what we can — skip failures (CDN assets)
-      return Promise.allSettled(
-        ASSETS.map(url => cache.add(url).catch(err =>
-          console.warn('[SW] Failed to cache:', url, err)
-        ))
-      );
-    }).then(() => self.skipWaiting())
+// Install — pre-cache critical assets
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(
+        PRECACHE.map(url =>
+          cache.add(url).catch(err =>
+            console.warn('[SW] Pre-cache failed for:', url, err)
+          )
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
-// Activate — clean old caches
-self.addEventListener('activate', e => {
-  e.waitUntil(
+// Activate — remove old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys
-        .filter(k => k !== CACHE)
-        .map(k => caches.delete(k))
+      Promise.all(
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
       )
     ).then(() => self.clients.claim())
   );
 });
 
-// Fetch — serve from cache, fall back to network
-self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => {
-      if (cached) return cached;
-      // Not in cache — fetch from network and cache for next time
-      return fetch(e.request).then(response => {
-        if (response.ok) {
+// Fetch — cache-first strategy
+// Serve from cache if available, else fetch and cache
+self.addEventListener('fetch', event => {
+  // Skip non-GET and chrome-extension requests
+  if (event.request.method !== 'GET') return;
+  if (event.request.url.startsWith('chrome-extension')) return;
+
+  event.respondWith(
+    caches.match(event.request).then(cached => {
+      if (cached) {
+        // Serve from cache — also update in background
+        // for model.onnx and labels.json (large files, fetch only once)
+        return cached;
+      }
+
+      // Not cached — fetch from network
+      return fetch(event.request)
+        .then(response => {
+          // Only cache successful responses
+          if (!response || !response.ok) return response;
+
           const clone = response.clone();
-          caches.open(CACHE).then(cache => cache.put(e.request, clone));
-        }
-        return response;
-      }).catch(() => {
-        // Completely offline and not cached — return offline page
-        if (e.request.destination === 'document') {
-          return caches.match('/Gesture_Car/index.html');
-        }
-      });
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, clone);
+          });
+          return response;
+        })
+        .catch(() => {
+          // Network failed — return index.html for navigation requests
+          if (event.request.destination === 'document') {
+            return caches.match('/Gesture_Car/index.html');
+          }
+        });
     })
   );
 });

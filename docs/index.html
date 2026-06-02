@@ -5,445 +5,734 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
 <title>Gesture RC Car</title>
 <link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#00e676"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <style>
 :root{
   --bg:#0f1117;--surface:#1a1d27;--border:#2a2d3a;
   --text:#e8eaf0;--muted:#6b7080;
-  --green:#00e676;--blue:#4dabf7;--amber:#ffb300;
-  --red:#ff5252;--purple:#b39ddb;
+  --green:#00e676;--blue:#4dabf7;
+  --amber:#ffb300;--red:#ff5252;--purple:#b39ddb;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Segoe UI',system-ui,sans-serif;
+body{
+  font-family:'Segoe UI',system-ui,sans-serif;
   background:var(--bg);color:var(--text);
   min-height:100dvh;display:flex;flex-direction:column;
-  -webkit-tap-highlight-color:transparent;}
-.overlay{position:fixed;inset:0;background:rgba(15,17,23,.97);
+  -webkit-tap-highlight-color:transparent;overflow-x:hidden;
+}
+
+/* ── Overlays ── */
+.overlay{
+  position:fixed;inset:0;background:rgba(15,17,23,.97);
   display:flex;flex-direction:column;align-items:center;
-  justify-content:center;z-index:999;padding:24px;
-  text-align:center;gap:16px;}
+  justify-content:center;z-index:900;padding:24px;
+  text-align:center;gap:16px;
+}
 .overlay.gone{display:none;}
-.spinner{width:48px;height:48px;border:3px solid var(--border);
+#load-overlay{z-index:999;}
+.spinner{
+  width:48px;height:48px;border:3px solid var(--border);
   border-top-color:var(--green);border-radius:50%;
-  animation:spin 1s linear infinite;}
+  animation:spin 1s linear infinite;
+}
 @keyframes spin{to{transform:rotate(360deg);}}
 .overlay h2{font-size:22px;font-weight:800;}
-.overlay p{font-size:14px;color:var(--muted);line-height:1.8;max-width:320px;}
-.overlay.busy h2{color:var(--amber);}
-.btn{background:var(--green);border:none;border-radius:12px;
+.overlay p{
+  font-size:14px;color:var(--muted);
+  line-height:1.8;max-width:320px;
+}
+.overlay-btn{
+  background:var(--green);border:none;border-radius:12px;
   padding:14px 28px;color:#000;font-size:15px;font-weight:800;
-  cursor:pointer;width:100%;max-width:320px;}
-.btn:active{transform:scale(.97);}
-header{background:var(--surface);border-bottom:1px solid var(--border);
+  cursor:pointer;width:100%;max-width:320px;
+}
+.overlay-btn:active{transform:scale(.97);}
+
+/* ── Header ── */
+header{
+  background:var(--surface);border-bottom:1px solid var(--border);
   padding:11px 16px;display:flex;justify-content:space-between;
-  align-items:center;position:sticky;top:0;z-index:100;}
+  align-items:center;position:sticky;top:0;z-index:100;
+}
 header h1{font-size:16px;font-weight:700;}
-.pills{display:flex;gap:5px;flex-wrap:wrap;}
-.pill{font-size:10px;padding:3px 9px;border-radius:20px;
+.pills{display:flex;gap:6px;}
+.pill{
+  font-size:11px;padding:4px 10px;border-radius:20px;
   border:1px solid var(--border);color:var(--muted);
-  background:var(--bg);transition:all .25s;white-space:nowrap;}
+  background:var(--bg);transition:all .25s;white-space:nowrap;
+}
 .pill.on{color:var(--green);border-color:var(--green);}
 .pill.err{color:var(--red);border-color:var(--red);}
 .pill.warn{color:var(--amber);border-color:var(--amber);}
-main{flex:1;display:flex;flex-direction:column;gap:12px;padding:12px;}
-.cam-wrap{position:relative;background:#000;border-radius:12px;
-  overflow:hidden;aspect-ratio:4/3;}
-#cv{width:100%;height:100%;object-fit:cover;display:block;transform:scaleX(-1);}
-.hud{position:absolute;inset:0;display:flex;flex-direction:column;
-  justify-content:space-between;padding:10px;pointer-events:none;}
+
+/* ── Main layout ── */
+main{
+  flex:1;display:flex;flex-direction:column;
+  gap:12px;padding:12px;
+}
+
+/* ── Camera ── */
+.cam-wrap{
+  position:relative;background:#000;
+  border-radius:12px;overflow:hidden;aspect-ratio:4/3;
+}
+#cam-canvas{
+  width:100%;height:100%;object-fit:cover;
+  display:block;transform:scaleX(-1);
+}
+.cam-hud{
+  position:absolute;inset:0;display:flex;
+  flex-direction:column;justify-content:space-between;
+  padding:10px;pointer-events:none;
+}
 .hud-top{display:flex;justify-content:space-between;}
-.gbadge{background:rgba(0,0,0,.75);padding:5px 13px;
-  border-radius:20px;font-size:14px;font-weight:600;color:var(--green);}
-.fps{background:rgba(0,0,0,.6);padding:3px 8px;
-  border-radius:6px;font-size:11px;color:var(--muted);}
-.crow{display:flex;align-items:center;gap:8px;}
-.ctrack{flex:1;height:5px;background:rgba(255,255,255,.15);
-  border-radius:3px;overflow:hidden;}
-.cfill{height:100%;border-radius:3px;background:var(--green);
-  width:0;transition:width .12s;}
-.cpct{font-size:11px;color:var(--muted);min-width:30px;text-align:right;}
-.card{background:var(--surface);border:1px solid var(--border);
-  border-radius:12px;padding:14px;}
-.lbl{font-size:11px;color:var(--muted);text-transform:uppercase;
-  letter-spacing:.8px;margin-bottom:10px;}
-.cmd{font-size:52px;font-weight:900;letter-spacing:3px;
-  text-align:center;padding:8px 0;color:var(--red);transition:color .12s;}
-.cmd.FORWARD{color:var(--green);}.cmd.REVERSE{color:var(--blue);}
-.cmd.LEFT{color:var(--purple);}.cmd.RIGHT{color:var(--amber);}
+.g-badge{
+  background:rgba(0,0,0,.75);padding:5px 13px;
+  border-radius:20px;font-size:14px;font-weight:600;
+  color:var(--green);
+}
+.fps-badge{
+  background:rgba(0,0,0,.6);padding:3px 8px;
+  border-radius:6px;font-size:11px;color:var(--muted);
+}
+.conf-row{display:flex;align-items:center;gap:8px;}
+.conf-track{
+  flex:1;height:5px;background:rgba(255,255,255,.15);
+  border-radius:3px;overflow:hidden;
+}
+.conf-fill{
+  height:100%;border-radius:3px;
+  background:var(--green);width:0;transition:width .12s;
+}
+.conf-pct{
+  font-size:11px;color:var(--muted);
+  min-width:30px;text-align:right;
+}
+
+/* ── Cards ── */
+.card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:14px;
+}
+.card-label{
+  font-size:11px;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;
+}
+
+/* ── Command display ── */
+.cmd{
+  font-size:54px;font-weight:900;letter-spacing:3px;
+  text-align:center;padding:8px 0;color:var(--red);
+  transition:color .12s;
+}
+.cmd.FORWARD{color:var(--green);}
+.cmd.REVERSE{color:var(--blue);}
+.cmd.LEFT   {color:var(--purple);}
+.cmd.RIGHT  {color:var(--amber);}
+.latency{
+  font-size:11px;color:var(--muted);
+  text-align:center;padding-top:4px;
+}
+
+/* ── D-pad ── */
 .dpad{display:flex;flex-direction:column;align-items:center;gap:6px;}
-.dr{display:flex;gap:6px;}
-.db{width:60px;height:60px;border-radius:10px;background:var(--bg);
-  border:1px solid var(--border);display:flex;align-items:center;
-  justify-content:center;font-size:22px;color:var(--muted);transition:all .1s;}
-.db.lit{background:#0d2b1a;border-color:var(--green);
-  color:var(--green);box-shadow:0 0 14px rgba(0,230,118,.3);}
-.db.lit.s{background:#2a0d0d;border-color:var(--red);
-  color:var(--red);box-shadow:0 0 14px rgba(255,82,82,.3);}
-.cbar{display:flex;align-items:center;gap:10px;padding:9px 12px;
-  background:var(--bg);border-radius:8px;border:1px solid var(--border);}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;}
-.dot.on{background:var(--green);box-shadow:0 0 6px var(--green);}
-.dot.err{background:var(--red);}
-.ctxt{flex:1;font-size:12px;color:var(--muted);}
-.mode-badge{font-size:11px;color:var(--blue);padding:2px 8px;
-  border:1px solid var(--blue);border-radius:10px;}
-.sbtn{background:var(--green);border:none;border-radius:12px;
-  padding:16px;color:#000;font-size:17px;font-weight:800;
-  width:100%;cursor:pointer;transition:all .15s;}
-.sbtn.run{background:var(--red);color:#fff;}
-.sbtn:active{transform:scale(.97);}
+.dpad-row{display:flex;gap:6px;}
+.dpad-btn{
+  width:62px;height:62px;border-radius:10px;
+  background:var(--bg);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:var(--muted);transition:all .1s;
+}
+.dpad-btn.lit{
+  background:#0d2b1a;border-color:var(--green);
+  color:var(--green);box-shadow:0 0 16px rgba(0,230,118,.35);
+}
+.dpad-btn.lit.stp{
+  background:#2a0d0d;border-color:var(--red);
+  color:var(--red);box-shadow:0 0 16px rgba(255,82,82,.35);
+}
+
+/* ── Connection bar ── */
+.conn-bar{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;background:var(--bg);
+  border-radius:8px;border:1px solid var(--border);
+}
+.dot{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--muted);flex-shrink:0;
+}
+.dot.on  {background:var(--green);box-shadow:0 0 6px var(--green);}
+.dot.err {background:var(--red);}
+.dot.warn{background:var(--amber);}
+.conn-text{flex:1;font-size:12px;color:var(--muted);}
+
+/* ── Start button ── */
+.start-btn{
+  background:var(--green);border:none;border-radius:12px;
+  padding:17px;color:#000;font-size:17px;font-weight:800;
+  width:100%;cursor:pointer;transition:all .15s;
+}
+.start-btn.running{background:var(--red);color:#fff;}
+.start-btn:active{transform:scale(.97);}
+
+/* ── Install banner ── */
+.install-bar{
+  display:flex;align-items:center;gap:10px;
+  background:var(--surface);border:1px solid var(--green);
+  border-radius:10px;padding:10px 14px;font-size:13px;
+}
+.install-bar.gone{display:none;}
+.install-btn{
+  background:var(--green);border:none;border-radius:6px;
+  padding:6px 14px;color:#000;font-weight:700;
+  font-size:12px;cursor:pointer;flex-shrink:0;
+}
+
+/* ── Responsive ── */
 @media(min-width:580px){
   main{flex-direction:row;flex-wrap:wrap;}
   .cam-wrap{max-width:380px;}
-  .right{flex:1;display:flex;flex-direction:column;gap:12px;min-width:260px;}
+  .right-col{
+    flex:1;display:flex;flex-direction:column;
+    gap:12px;min-width:260px;
+  }
 }
 </style>
 </head>
 <body>
 
-<div class="overlay" id="load-ov">
+<!-- Loading overlay -->
+<div class="overlay" id="load-overlay">
   <div class="spinner"></div>
   <h2>Gesture RC Car</h2>
-  <p id="load-txt">Loading ML model&hellip;<br>
-    <small>~15s first time &middot; cached after</small></p>
+  <p id="load-txt">
+    Loading ML model…<br>
+    <small>First load ~15s · cached permanently after</small>
+  </p>
 </div>
 
-<div class="overlay busy gone" id="busy-ov">
-  <div style="font-size:52px">&#x1F512;</div>
-  <h2>Car Busy</h2>
-  <p>Already controlled by another device.<br>
-     Ask them to close the app, then retry.</p>
-  <button class="btn" id="busy-btn">&#x21BA; Try Again</button>
-</div>
-
+<!-- Header -->
 <header>
-  <h1>&#x2B21; Gesture RC Car</h1>
+  <h1>⬡ Gesture RC Car</h1>
   <div class="pills">
-    <span class="pill" id="p-cam">&#9679; Cam</span>
-    <span class="pill" id="p-ml">&#9679; ML</span>
-    <span class="pill" id="p-mqtt">&#9679; Broker</span>
-    <span class="pill" id="p-car">&#9679; Car</span>
+    <span class="pill" id="p-cam">● Cam</span>
+    <span class="pill" id="p-ml">● ML</span>
+    <span class="pill" id="p-car">● Car</span>
   </div>
 </header>
 
 <main>
+  <!-- Camera feed -->
   <div class="cam-wrap">
-    <canvas id="cv"></canvas>
-    <div class="hud">
+    <canvas id="cam-canvas"></canvas>
+    <div class="cam-hud">
       <div class="hud-top">
-        <div class="gbadge" id="gbadge">&mdash;</div>
-        <div class="fps" id="fps-el">0 fps</div>
+        <div class="g-badge" id="g-badge">—</div>
+        <div class="fps-badge" id="fps-el">0 fps</div>
       </div>
-      <div class="crow">
-        <div class="ctrack"><div class="cfill" id="cfill"></div></div>
-        <span class="cpct" id="cpct">0%</span>
+      <div class="conf-row">
+        <div class="conf-track">
+          <div class="conf-fill" id="conf-fill"></div>
+        </div>
+        <span class="conf-pct" id="conf-pct">0%</span>
       </div>
     </div>
   </div>
 
-  <div class="right">
-    <div class="card">
-      <div class="lbl">Active Command
-        <span class="mode-badge">&#9729; Cloud MQTT</span>
-      </div>
-      <div class="cmd STOP" id="cmd-el">STOP</div>
+  <!-- Right column -->
+  <div class="right-col">
+
+    <!-- PWA install banner -->
+    <div class="install-bar gone" id="install-bar">
+      <span style="flex:1">📲 Install as app for offline ML</span>
+      <button class="install-btn" id="install-btn">Install</button>
     </div>
+
+    <!-- Active command -->
+    <div class="card">
+      <div class="card-label">Active Command</div>
+      <div class="cmd STOP" id="cmd-el">STOP</div>
+      <div class="latency" id="latency-el">— ms cloud latency</div>
+    </div>
+
+    <!-- D-pad -->
     <div class="card">
       <div class="dpad">
-        <div class="db" id="dF">&#9650;</div>
-        <div class="dr">
-          <div class="db" id="dL">&#9664;</div>
-          <div class="db s" id="dS">&#9632;</div>
-          <div class="db" id="dR">&#9654;</div>
+        <div class="dpad-btn" id="d-FORWARD">▲</div>
+        <div class="dpad-row">
+          <div class="dpad-btn" id="d-LEFT">◀</div>
+          <div class="dpad-btn stp" id="d-STOP">■</div>
+          <div class="dpad-btn" id="d-RIGHT">▶</div>
         </div>
-        <div class="db" id="dV">&#9660;</div>
+        <div class="dpad-btn" id="d-REVERSE">▼</div>
       </div>
     </div>
+
+    <!-- Connection status -->
     <div class="card">
-      <div class="lbl">Connection</div>
-      <div class="cbar">
+      <div class="card-label">Connection</div>
+      <div class="conn-bar">
         <div class="dot" id="conn-dot"></div>
-        <span class="ctxt" id="conn-txt">Connecting to broker&hellip;</span>
+        <span class="conn-text" id="conn-txt">Connecting to broker…</span>
       </div>
     </div>
-    <button class="sbtn" id="sbtn">&#9654; Start Gesture Control</button>
+
+    <!-- Start button -->
+    <button class="start-btn" id="start-btn">▶ Start Gesture Control</button>
+
   </div>
 </main>
 
-<!-- MQTT.js — works over WSS from HTTPS pages -->
-<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<!-- Dependencies from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js" crossorigin="anonymous"></script>
+
 <script>
-// ── HiveMQ credentials — UPDATE THESE ──────────────────────────
-const BROKER_URL  = 'wss://29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud:8884/mqtt';
-const MQTT_USER   = 'gesturecar';
-const MQTT_PASS   = '#Yash@2026';
-const TOPIC_CMD   = 'gesture/car/command';
-const TOPIC_STATUS= 'gesture/car/status';
+// ════════════════════════════════════════════════════════════
+// CONFIG — update BROKER_URL with YOUR HiveMQ cluster URL
+// ════════════════════════════════════════════════════════════
+const BROKER_URL    = 'wss://29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud:8884/mqtt';
+const BROKER_USER   = 'Mudron';
+const BROKER_PASS   = '26crGesture';
+const TOPIC_CMD     = 'gesturecar/command';
+const TOPIC_STATUS  = 'gesturecar/status';
+const CLIENT_ID     = 'gesture_phone_' + Math.random().toString(16).substr(2,8);
 
-// Unique ID for this controller session
-const MY_ID = 'phone_' + Math.random().toString(36).substr(2,8);
+// ML config
+const CONF_MIN = 0.85;
+const VOTES    = 3;
 
-const CONF=.85, VOTES=3;
-let sess, labels=[], mqttClient, running=false;
-let vbuf=[], lastStable='STOP', lastCmd=null, lastSent=0;
-let fpsCnt=0,fpsVal=0,fpsT=performance.now();
-let camera, hands, carReady=false;
+// ════════════════════════════════════════════════════════════
+// State
+// ════════════════════════════════════════════════════════════
+let onnxSession, labels = [];
+let mqttClient;
+let running     = false;
+let carOnline   = false;
+let voteBuf     = [], lastStable = 'STOP';
+let lastSentCmd = null, lastSentTime = 0;
+let fpsCnt = 0, fpsVal = 0, fpsTimer = performance.now();
+let cameraInst, handsInst;
+let pingStartTime = 0;
+let deferredPrompt;
 
-// ── DOM ──────────────────────────────────────────────────────────
-const cv=document.getElementById('cv');
-const ctx=cv.getContext('2d');
-const gbadge=document.getElementById('gbadge');
-const fpsEl=document.getElementById('fps-el');
-const cfill=document.getElementById('cfill');
-const cpct=document.getElementById('cpct');
-const cmdEl=document.getElementById('cmd-el');
-const connDot=document.getElementById('conn-dot');
-const connTxt=document.getElementById('conn-txt');
-const sbtn=document.getElementById('sbtn');
-const pCam=document.getElementById('p-cam');
-const pMl=document.getElementById('p-ml');
-const pMqtt=document.getElementById('p-mqtt');
-const pCar=document.getElementById('p-car');
-const D={FORWARD:document.getElementById('dF'),REVERSE:document.getElementById('dV'),
-  LEFT:document.getElementById('dL'),RIGHT:document.getElementById('dR'),
-  STOP:document.getElementById('dS')};
+// ════════════════════════════════════════════════════════════
+// DOM references
+// ════════════════════════════════════════════════════════════
+const canvas    = document.getElementById('cam-canvas');
+const ctx       = canvas.getContext('2d');
+const gBadge    = document.getElementById('g-badge');
+const fpsEl     = document.getElementById('fps-el');
+const confFill  = document.getElementById('conf-fill');
+const confPct   = document.getElementById('conf-pct');
+const cmdEl     = document.getElementById('cmd-el');
+const connDot   = document.getElementById('conn-dot');
+const connTxt   = document.getElementById('conn-txt');
+const latEl     = document.getElementById('latency-el');
+const startBtn  = document.getElementById('start-btn');
+const pCam      = document.getElementById('p-cam');
+const pMl       = document.getElementById('p-ml');
+const pCar      = document.getElementById('p-car');
+const loadTxt   = document.getElementById('load-txt');
 
-const hide=id=>document.getElementById(id).classList.add('gone');
-const show=id=>document.getElementById(id).classList.remove('gone');
+const DPAD = ['FORWARD','REVERSE','LEFT','RIGHT','STOP']
+  .reduce((acc, k) => ({ ...acc, [k]: document.getElementById('d-'+k) }), {});
 
-document.getElementById('busy-btn').addEventListener('click',()=>{
-  hide('busy-ov'); connectMQTT();
+// ════════════════════════════════════════════════════════════
+// PWA install prompt
+// ════════════════════════════════════════════════════════════
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-bar').classList.remove('gone');
 });
 
-// ── MQTT connection ──────────────────────────────────────────────
+document.getElementById('install-btn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById('install-bar').classList.add('gone');
+});
+
+// ════════════════════════════════════════════════════════════
+// MQTT connection
+// ════════════════════════════════════════════════════════════
 function connectMQTT() {
-  setConn('wait','Connecting to cloud broker&hellip;');
+  setConn('wait', 'Connecting to broker…');
 
   mqttClient = mqtt.connect(BROKER_URL, {
-    username: MQTT_USER,
-    password: MQTT_PASS,
-    clientId: MY_ID,
-    clean: true,
+    username:        BROKER_USER,
+    password:        BROKER_PASS,
+    clientId:        CLIENT_ID,
+    keepalive:       30,
     reconnectPeriod: 3000,
-    connectTimeout: 10000,
+    connectTimeout:  10000,
+    clean:           true,
   });
 
   mqttClient.on('connect', () => {
-    pMqtt.className='pill on';pMqtt.textContent='● Broker';
-    mqttClient.subscribe(TOPIC_STATUS);
-    // Send CONNECT to claim car
-    publish('CONNECT');
-    setConn('wait','Claiming car&hellip;');
-    console.log('[MQTT] Connected as:', MY_ID);
+    console.log('[MQTT] Broker connected');
+    setConn('warn', 'Broker connected — waiting for car…');
+
+    // Subscribe to car status
+    mqttClient.subscribe(TOPIC_STATUS, err => {
+      if (!err) {
+        console.log('[MQTT] Subscribed to status topic');
+        // Ping car to measure latency and check if online
+        pingStartTime = Date.now();
+        mqttClient.publish(TOPIC_CMD, 'PING');
+      }
+    });
   });
 
-  mqttClient.on('message', (topic, msg) => {
-    const m = msg.toString();
+  mqttClient.on('message', (topic, payload) => {
+    const msg = payload.toString();
+    console.log('[MQTT] Received:', topic, msg);
+
     if (topic === TOPIC_STATUS) {
-      if (m.startsWith('READY:') && m.includes(MY_ID)) {
-        carReady = true;
-        setConn('on','Car connected &#x2713;');
-        pCar.className='pill on';
-      } else if (m === 'BUSY:Car already controlled') {
-        carReady = false;
-        setConn('err','Car busy');
-        show('busy-ov');
-      } else if (m === 'FREE') {
-        carReady = false;
-        setConn('err','Car released');
-        pCar.className='pill err';
-      } else if (m === 'ONLINE') {
-        // Car just connected to broker
-        publish('CONNECT'); // Re-claim
+      if (msg === 'ONLINE' || msg === 'ALIVE') {
+        carOnline = true;
+        const latency = Date.now() - pingStartTime;
+        setConn('on', `Car online ✓  (${latency}ms latency)`);
+        latEl.textContent = latency + 'ms cloud latency';
+        // Reset ping timer for next measurement
+        pingStartTime = Date.now();
       }
     }
   });
 
-  mqttClient.on('error', e => {
-    pMqtt.className='pill err';
-    setConn('err','Broker error: '+e.message);
-    console.error('[MQTT] Error:', e);
+  mqttClient.on('reconnect', () => {
+    carOnline = false;
+    setConn('warn', 'Reconnecting to broker…');
   });
 
-  mqttClient.on('offline', () => {
-    pMqtt.className='pill err';
-    setConn('err','Broker offline — reconnecting&hellip;');
-    carReady=false;
-    pCar.className='pill err';
+  mqttClient.on('disconnect', () => {
+    carOnline = false;
+    setConn('err', 'Broker disconnected');
+  });
+
+  mqttClient.on('error', err => {
+    carOnline = false;
+    setConn('err', 'Connection error — check credentials');
+    console.error('[MQTT] Error:', err.message);
   });
 }
 
-function publish(command) {
-  if (!mqttClient?.connected) return;
-  mqttClient.publish(TOPIC_CMD, MY_ID+':'+command, {qos:0});
+function setConn(state, msg) {
+  const dotMap  = { on:'on', err:'err', warn:'warn' };
+  const pillMap = { on:'on', err:'err', warn:'warn' };
+  connDot.className = 'dot' + (dotMap[state]  ? ' '+dotMap[state]  : '');
+  pCar.className    = 'pill'+ (pillMap[state] ? ' '+pillMap[state] : '');
+  pCar.textContent  = '● Car';
+  connTxt.textContent = msg;
 }
 
-function setConn(state,msg){
-  const m={on:'on',err:'err',wait:''};
-  connDot.className='dot'+(m[state]?' '+m[state]:'');
-  connTxt.innerHTML=msg;
-}
+// ════════════════════════════════════════════════════════════
+// Send command via MQTT publish
+// ════════════════════════════════════════════════════════════
+function sendCommand(cmd) {
+  const now       = Date.now();
+  const changed   = cmd !== lastSentCmd;
+  const heartbeat = now - lastSentTime > 400;
 
-// ── Cleanup ───────────────────────────────────────────────────
-function cleanup(){
-  if(mqttClient?.connected){
-    publish('DISCONNECT');
-    publish('STOP');
-    mqttClient.end();
+  if ((changed || heartbeat) && mqttClient?.connected) {
+    mqttClient.publish(TOPIC_CMD, cmd, { qos: 0, retain: false });
+    lastSentCmd  = cmd;
+    lastSentTime = now;
   }
-  camera?.stop();
 }
-window.addEventListener('beforeunload',cleanup);
-window.addEventListener('pagehide',cleanup);
-document.addEventListener('visibilitychange',()=>{
-  if(document.hidden&&running){
-    publish('STOP');
+
+// ════════════════════════════════════════════════════════════
+// Cleanup — send STOP before page closes
+// ════════════════════════════════════════════════════════════
+function cleanup() {
+  if (mqttClient?.connected) {
+    mqttClient.publish(TOPIC_CMD, 'STOP', { qos: 0 });
+  }
+  cameraInst?.stop();
+}
+
+window.addEventListener('beforeunload', cleanup);
+window.addEventListener('pagehide',     cleanup);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && running) {
+    sendCommand('STOP');
   }
 });
 
-// ── Send command via MQTT ─────────────────────────────────────
-function send(cmd){
-  const now=Date.now();
-  if((cmd!==lastCmd||now-lastSent>400)&&carReady){
-    publish(cmd);
-    lastCmd=cmd;lastSent=now;
+// ════════════════════════════════════════════════════════════
+// Vote buffer — asymmetric response
+// STOP fires in 1 frame (~33ms)
+// Motion fires after 3 consecutive frames (~100ms)
+// ════════════════════════════════════════════════════════════
+function vote(label, conf, handPresent) {
+  if (!handPresent || conf < CONF_MIN) {
+    voteBuf = []; lastStable = 'STOP'; return 'STOP';
   }
-}
-
-// ── Vote buffer ───────────────────────────────────────────────
-function vote(l,c,h){
-  if(!h||c<CONF){vbuf=[];lastStable='STOP';return 'STOP';}
-  const cmd=l.toUpperCase();
-  if(cmd==='STOP'){vbuf=[];lastStable='STOP';return 'STOP';}
-  vbuf.push(cmd);if(vbuf.length>VOTES)vbuf.shift();
-  if(vbuf.length>=VOTES&&vbuf.every(v=>v===vbuf[0]))lastStable=vbuf[0];
+  const cmd = label.toUpperCase();
+  if (cmd === 'STOP') {
+    voteBuf = []; lastStable = 'STOP'; return 'STOP';
+  }
+  voteBuf.push(cmd);
+  if (voteBuf.length > VOTES) voteBuf.shift();
+  if (voteBuf.length >= VOTES && voteBuf.every(v => v === voteBuf[0])) {
+    lastStable = voteBuf[0];
+  }
   return lastStable;
 }
 
-// ── Feature extraction ────────────────────────────────────────
-function feat(lms){
-  const wx=lms[0].x,wy=lms[0].y,wz=lms[0].z,a=[];
-  for(const l of lms)a.push(l.x-wx,l.y-wy,l.z-wz);
-  const mx=Math.max(...a.map(Math.abs));
-  return mx<1e-6?null:new Float32Array(a.map(v=>v/mx));
-}
-
-// ── ONNX inference ────────────────────────────────────────────
-async function classify(f){
-  if(!sess)return null;
-  try{
-    const t=new ort.Tensor('float32',f,[1,63]);
-    const r=await sess.run({float_input:t});
-    const p=r['probabilities']?.data
-         ||r[Object.keys(r).find(k=>k.toLowerCase().includes('prob'))]?.data;
-    if(!p)return null;
-    let mi=0,mp=0;p.forEach((v,i)=>{if(v>mp){mp=v;mi=i;}});
-    return{label:labels[mi]||'?',conf:mp};
-  }catch{return null;}
-}
-
-// ── Landmark drawing ──────────────────────────────────────────
-const CN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
-  [0,9],[9,10],[10,11],[11,12],[0,13],[13,14],[14,15],[15,16],
-  [0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
-const TI=new Set([4,8,12,16,20]);
-function drawL(lms){
-  const w=cv.width,h=cv.height;
-  ctx.strokeStyle='rgba(255,255,255,.45)';ctx.lineWidth=1.5;
-  for(const[a,b]of CN){
-    ctx.beginPath();ctx.moveTo(lms[a].x*w,lms[a].y*h);
-    ctx.lineTo(lms[b].x*w,lms[b].y*h);ctx.stroke();
+// ════════════════════════════════════════════════════════════
+// Feature extraction — normalize to wrist origin + scale
+// ════════════════════════════════════════════════════════════
+function extractFeatures(landmarks) {
+  const wx = landmarks[0].x;
+  const wy = landmarks[0].y;
+  const wz = landmarks[0].z;
+  const coords = [];
+  for (const lm of landmarks) {
+    coords.push(lm.x - wx, lm.y - wy, lm.z - wz);
   }
-  lms.forEach((l,i)=>{
-    ctx.beginPath();ctx.arc(l.x*w,l.y*h,i===0?6:TI.has(i)?5:3,0,Math.PI*2);
-    ctx.fillStyle=i===0?'#ffb300':TI.has(i)?'#00e676':'#4dabf7';ctx.fill();
+  const maxAbs = Math.max(...coords.map(Math.abs));
+  if (maxAbs < 1e-6) return null;
+  return new Float32Array(coords.map(v => v / maxAbs));
+}
+
+// ════════════════════════════════════════════════════════════
+// ONNX inference
+// ════════════════════════════════════════════════════════════
+async function classify(features) {
+  if (!onnxSession) return null;
+  try {
+    const tensor  = new ort.Tensor('float32', features, [1, 63]);
+    const results = await onnxSession.run({ float_input: tensor });
+    // Handle different output key names from skl2onnx versions
+    const probs = results['probabilities']?.data
+               || results[Object.keys(results)
+                    .find(k => k.toLowerCase().includes('prob'))]?.data;
+    if (!probs) return null;
+    let maxIdx = 0, maxProb = 0;
+    probs.forEach((v, i) => { if (v > maxProb) { maxProb = v; maxIdx = i; } });
+    return { label: labels[maxIdx] || '?', conf: maxProb };
+  } catch (e) {
+    console.warn('[ONNX] Inference error:', e);
+    return null;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// Draw hand landmarks on canvas
+// ════════════════════════════════════════════════════════════
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],        // thumb
+  [0,5],[5,6],[6,7],[7,8],        // index
+  [0,9],[9,10],[10,11],[11,12],   // middle
+  [0,13],[13,14],[14,15],[15,16], // ring
+  [0,17],[17,18],[18,19],[19,20], // pinky
+  [5,9],[9,13],[13,17],           // palm
+];
+const TIP_IDS = new Set([4, 8, 12, 16, 20]);
+
+function drawLandmarks(lms) {
+  const w = canvas.width, h = canvas.height;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth   = 1.5;
+  for (const [a, b] of CONNECTIONS) {
+    ctx.beginPath();
+    ctx.moveTo(lms[a].x * w, lms[a].y * h);
+    ctx.lineTo(lms[b].x * w, lms[b].y * h);
+    ctx.stroke();
+  }
+  lms.forEach((lm, i) => {
+    const r = i === 0 ? 6 : TIP_IDS.has(i) ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(lm.x * w, lm.y * h, r, 0, Math.PI * 2);
+    ctx.fillStyle = i === 0 ? '#ffb300'
+                  : TIP_IDS.has(i) ? '#00e676' : '#4dabf7';
+    ctx.fill();
   });
 }
 
-// ── MediaPipe result ──────────────────────────────────────────
-async function onRes(res){
-  cv.width=res.image.width;cv.height=res.image.height;
-  ctx.clearRect(0,0,cv.width,cv.height);ctx.drawImage(res.image,0,0);
-  let g='No hand',c=0,h=false;
-  if(res.multiHandLandmarks?.length){
-    const lms=res.multiHandLandmarks[0];
-    h=true;drawL(lms);
-    const f=feat(lms);
-    if(f){const r=await classify(f);if(r){g=r.label;c=r.conf;}}
+// ════════════════════════════════════════════════════════════
+// MediaPipe result handler — runs every frame
+// ════════════════════════════════════════════════════════════
+async function onResults(results) {
+  canvas.width  = results.image.width;
+  canvas.height = results.image.height;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(results.image, 0, 0);
+
+  let gesture = 'No hand', conf = 0, handPresent = false;
+
+  if (results.multiHandLandmarks?.length > 0) {
+    const lms = results.multiHandLandmarks[0];
+    handPresent = true;
+    drawLandmarks(lms);
+
+    const features = extractFeatures(lms);
+    if (features) {
+      const result = await classify(features);
+      if (result) {
+        gesture = result.label;
+        conf    = result.conf;
+      }
+    }
   }
-  const cmd=vote(g,c,h);
-  gbadge.textContent=g;
-  const p=Math.round(c*100);
-  cfill.style.width=p+'%';cfill.style.background=p>=85?'#00e676':'#4dabf7';
-  cpct.textContent=p+'%';
-  cmdEl.textContent=cmd;cmdEl.className='cmd '+cmd;
-  Object.entries(D).forEach(([k,el])=>el.classList.toggle('lit',k===cmd));
-  fpsCnt++;const now=performance.now();
-  if(now-fpsT>=1000){fpsVal=fpsCnt;fpsCnt=0;fpsT=now;
-    fpsEl.textContent=fpsVal+' fps';}
-  if(running)send(cmd);
+
+  const cmd = vote(gesture, conf, handPresent);
+
+  // Update UI
+  gBadge.textContent    = gesture;
+  const pct             = Math.round(conf * 100);
+  confFill.style.width  = pct + '%';
+  confFill.style.background = pct >= 85 ? '#00e676' : '#4dabf7';
+  confPct.textContent   = pct + '%';
+  cmdEl.textContent     = cmd;
+  cmdEl.className       = 'cmd ' + cmd;
+  Object.entries(DPAD).forEach(([k, el]) =>
+    el.classList.toggle('lit', k === cmd));
+
+  // FPS counter
+  fpsCnt++;
+  const now = performance.now();
+  if (now - fpsTimer >= 1000) {
+    fpsVal   = fpsCnt; fpsCnt = 0; fpsTimer = now;
+    fpsEl.textContent = fpsVal + ' fps';
+  }
+
+  // Send command if gesture control is running
+  if (running) sendCommand(cmd);
 }
 
-// ── Camera ────────────────────────────────────────────────────
-async function startCamera(){
-  if(!hands){
-    hands=new Hands({locateFile:f=>
-      `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`});
-    hands.setOptions({maxNumHands:1,modelComplexity:1,
-      minDetectionConfidence:.7,minTrackingConfidence:.6});
-    hands.onResults(onRes);
+// ════════════════════════════════════════════════════════════
+// Camera — uses front camera via getUserMedia
+// ════════════════════════════════════════════════════════════
+async function startCamera() {
+  if (!handsInst) {
+    handsInst = new Hands({
+      locateFile: f =>
+        `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+    });
+    handsInst.setOptions({
+      maxNumHands:            1,
+      modelComplexity:        1,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence:  0.6,
+    });
+    handsInst.onResults(onResults);
   }
-  try{
-    const s=await navigator.mediaDevices.getUserMedia(
-      {video:{facingMode:'user',width:{ideal:640},height:{ideal:480}}});
-    const v=document.createElement('video');v.srcObject=s;
-    camera=new Camera(v,{onFrame:async()=>{await hands.send({image:v});},
-      width:640,height:480});
-    await camera.start();pCam.className='pill on';
-  }catch{
-    pCam.className='pill err';
-    alert('Camera denied — allow camera permission and reload.');
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'user',
+        width:  { ideal: 640 },
+        height: { ideal: 480 },
+      }
+    });
+    const video = document.createElement('video');
+    video.srcObject = stream;
+
+    cameraInst = new Camera(video, {
+      onFrame: async () => {
+        await handsInst.send({ image: video });
+      },
+      width: 640, height: 480,
+    });
+    await cameraInst.start();
+    pCam.classList.add('on');
+    pCam.textContent = '● Cam';
+    console.log('[CAM] Camera started');
+
+  } catch (err) {
+    pCam.classList.add('err');
+    pCam.textContent = '● Cam';
+    console.error('[CAM] Error:', err);
+    alert('Camera access denied.\nAllow camera in browser settings and reload.');
   }
 }
 
-sbtn.addEventListener('click',async()=>{
-  if(!running){
-    running=true;sbtn.textContent='&#9209; Stop';sbtn.classList.add('run');
+// ════════════════════════════════════════════════════════════
+// Start / Stop button
+// ════════════════════════════════════════════════════════════
+startBtn.addEventListener('click', async () => {
+  if (!running) {
+    running = true;
+    startBtn.textContent = '⏹ Stop';
+    startBtn.classList.add('running');
     await startCamera();
-  }else{
-    running=false;sbtn.textContent='&#9654; Start Gesture Control';
-    sbtn.classList.remove('run');send('STOP');camera?.stop();camera=null;
-    cmdEl.textContent='STOP';cmdEl.className='cmd STOP';
-    Object.values(D).forEach(e=>e.classList.remove('lit'));
+  } else {
+    running = false;
+    startBtn.textContent = '▶ Start Gesture Control';
+    startBtn.classList.remove('running');
+    sendCommand('STOP');
+    cameraInst?.stop();
+    cameraInst = null;
+    cmdEl.textContent = 'STOP';
+    cmdEl.className   = 'cmd STOP';
+    Object.values(DPAD).forEach(el => el.classList.remove('lit'));
   }
 });
 
-// ── Load model ────────────────────────────────────────────────
-async function loadModel(){
-  const lt=document.getElementById('load-txt');
-  try{
-    lt.innerHTML='Downloading ML model&hellip;<br><small>Cached permanently after first load</small>';
-    sess=await ort.InferenceSession.create('./model.onnx',
-      {executionProviders:['wasm']});
-    lt.innerHTML='Loading labels&hellip;';
-    labels=(await(await fetch('./labels.json')).json()).labels;
-    hide('load-ov');pMl.className='pill on';
+// ════════════════════════════════════════════════════════════
+// Load model + labels + start MQTT
+// ════════════════════════════════════════════════════════════
+async function init() {
+  try {
+    loadTxt.innerHTML = 'Downloading ML model…<br>'
+      + '<small>~10MB · cached permanently after first load</small>';
+
+    onnxSession = await ort.InferenceSession.create('./model.onnx', {
+      executionProviders: ['wasm'],
+    });
+
+    loadTxt.innerHTML = 'Loading gesture labels…';
+    const resp = await fetch('./labels.json');
+    const data = await resp.json();
+    labels = data.labels;
+    console.log('[ML] Model loaded. Classes:', labels);
+
+    // Hide loading overlay
+    document.getElementById('load-overlay').classList.add('gone');
+    pMl.classList.add('on');
+    pMl.textContent = '● ML';
+
+    // Connect to MQTT broker
     connectMQTT();
-  }catch(e){
-    lt.innerHTML='Load failed.<br><small>'+e.message+'</small>';
-    pMl.className='pill err';
+
+    // Periodic latency ping every 10 seconds
+    setInterval(() => {
+      if (mqttClient?.connected) {
+        pingStartTime = Date.now();
+        mqttClient.publish(TOPIC_CMD, 'PING');
+      }
+    }, 10000);
+
+  } catch (err) {
+    loadTxt.innerHTML = 'Load failed.<br>'
+      + `<small>${err.message}</small><br><br>`
+      + '<small>Check that model.onnx is in the repo</small>';
+    pMl.classList.add('err');
+    console.error('[INIT] Failed:', err);
   }
 }
 
-// ── Service worker ────────────────────────────────────────────
-if('serviceWorker' in navigator){
+// ════════════════════════════════════════════════════════════
+// Register service worker for offline caching
+// ════════════════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js')
-    .catch(e=>console.warn('[SW]',e));
+    .then(() => console.log('[SW] Registered'))
+    .catch(err => console.warn('[SW] Failed:', err));
 }
 
-loadModel();
+// Start everything
+init();
 </script>
 </body>
 </html>

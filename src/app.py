@@ -1,7 +1,8 @@
+# src/app.py
 # ─────────────────────────────────────────────────────────────
 # Flask backend server — LAPTOP MODE for development/testing.
 # Runs MediaPipe + ML inference locally on laptop.
-# Sends commands to ESP8266 via MQTT (same HiveMQ broker).
+# Sends commands to ESP8266 via HiveMQ MQTT broker.
 #
 # Run: python src/app.py
 # Open: http://localhost:5000
@@ -17,7 +18,16 @@ import numpy as np
 from collections import deque
 
 import mediapipe as mp
-import paho.mqtt.client as paho_mqtt
+
+# Verify paho-mqtt is installed
+try:
+    import paho.mqtt.client as paho_mqtt
+except ImportError:
+    print("\n" + "!"*55)
+    print("  ERROR: paho-mqtt not installed.")
+    print("  Run: pip install paho-mqtt==1.6.1")
+    print("!"*55 + "\n")
+    sys.exit(1)
 
 from flask import Flask, Response, render_template, jsonify
 from flask_socketio import SocketIO
@@ -30,6 +40,9 @@ from config import (
     CONFIDENCE_THRESHOLD, VOTE_WINDOW,
     FLASK_HOST, FLASK_PORT,
     GESTURES,
+    MQTT_BROKER, MQTT_PORT_TLS,
+    MQTT_USERNAME, MQTT_PASSWORD,
+    MQTT_TOPIC_CMD, MQTT_TOPIC_STATUS,
 )
 from hand_utils import (
     build_hand_detector, process_frame,
@@ -40,11 +53,17 @@ from hand_utils import (
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 app = Flask(
     __name__,
-    template_folder=os.path.join(BASE_DIR, "templates"),
-    static_folder=os.path.join(BASE_DIR, "static"),
+    template_folder = os.path.join(BASE_DIR, "templates"),
+    static_folder   = os.path.join(BASE_DIR, "static"),
 )
-app.config['SECRET_KEY'] = 'gesture_car_dev'
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+app.config['SECRET_KEY'] = 'gesture_car_dev_2024'
+socketio = SocketIO(
+    app,
+    cors_allowed_origins = "*",
+    async_mode          = 'threading',
+    logger              = False,
+    engineio_logger     = False,
+)
 
 # ── Shared state ──────────────────────────────────────────────
 frame_lock = threading.Lock()
@@ -65,59 +84,104 @@ state = {
 class MQTTSender:
     """
     Sends commands to ESP8266 via HiveMQ MQTT broker.
-    Same broker as the mobile web app — both control methods
-    use identical infrastructure.
+    Connects over TLS port 8883.
     """
-    # Update these to match your HiveMQ cluster
-    BROKER   = "29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud"
-    PORT     = 8883
-    USERNAME = "Mudron"
-    PASSWORD = "26crGesture"
-    TOPIC    = "gesturecar/command"
 
     def __init__(self):
-        self.client    = paho_mqtt.Client(
-            client_id  = "gesture_laptop_dev",
-            protocol   = paho_mqtt.MQTTv311,
-        )
-        self.client.username_pw_set(self.USERNAME, self.PASSWORD)
-        self.client.tls_set()
         self.connected  = False
         self.last_cmd   = None
         self.last_sent  = 0.0
 
-        self.client.on_connect = self._on_connect
+        # Validate config before connecting
+        if "xxxxxxxx" in MQTT_BROKER:
+            print("\n" + "!"*55)
+            print("  WARNING: MQTT_BROKER not configured in config.py")
+            print("  Update MQTT_BROKER with your HiveMQ cluster URL")
+            print("  Car will not receive commands until this is set")
+            print("!"*55 + "\n")
+            return
+
+        self.client = paho_mqtt.Client(
+            client_id = "gesture_laptop_dev",
+            protocol  = paho_mqtt.MQTTv311,
+        )
+        self.client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+
+        # TLS for port 8883
+        try:
+            self.client.tls_set()
+        except Exception as e:
+            print(f"[MQTT] TLS setup error: {e}")
+            return
+
+        self.client.on_connect    = self._on_connect
         self.client.on_disconnect = self._on_disconnect
+        self.client.on_publish    = self._on_publish
 
         try:
-            self.client.connect(self.BROKER, self.PORT, keepalive=30)
+            print(f"[MQTT] Connecting to {MQTT_BROKER}:{MQTT_PORT_TLS}")
+            self.client.connect(MQTT_BROKER, MQTT_PORT_TLS, keepalive=30)
             self.client.loop_start()
-            print(f"[MQTT] Connecting to {self.BROKER}")
         except Exception as e:
             print(f"[MQTT] Connection failed: {e}")
+            print("[MQTT] Check: internet connection, broker URL, credentials")
 
     def _on_connect(self, client, userdata, flags, rc):
-        self.connected = (rc == 0)
-        status = "Connected ✓" if rc == 0 else f"Failed rc={rc}"
-        print(f"[MQTT] {status}")
+        rc_meanings = {
+            0: "Connected successfully",
+            1: "Wrong protocol version",
+            2: "Invalid client ID",
+            3: "Broker unavailable",
+            4: "Wrong username or password",
+            5: "Not authorised",
+        }
+        if rc == 0:
+            self.connected = True
+            print(f"[MQTT] ✓ Connected to HiveMQ")
+            # Subscribe to car status to confirm car is online
+            self.client.subscribe(MQTT_TOPIC_STATUS)
+        else:
+            self.connected = False
+            meaning = rc_meanings.get(rc, f"Unknown error rc={rc}")
+            print(f"[MQTT] ✗ Connection refused: {meaning}")
+            if rc == 4:
+                print("[MQTT] Check MQTT_USERNAME and MQTT_PASSWORD in config.py")
 
     def _on_disconnect(self, client, userdata, rc):
         self.connected = False
-        print(f"[MQTT] Disconnected rc={rc}")
+        if rc != 0:
+            print(f"[MQTT] Unexpected disconnect rc={rc} — will auto-reconnect")
+        else:
+            print("[MQTT] Disconnected cleanly")
+
+    def _on_publish(self, client, userdata, mid):
+        pass  # called when message delivered
 
     def send(self, command: str):
-        now      = time.time()
-        changed  = command != self.last_cmd
-        heartbeat= now - self.last_sent > 0.4
+        if not hasattr(self, 'client') or not self.connected:
+            return
 
-        if (changed or heartbeat) and self.connected:
-            self.client.publish(self.TOPIC, command, qos=0, retain=False)
-            self.last_cmd  = command
-            self.last_sent = now
+        now       = time.time()
+        changed   = command != self.last_cmd
+        heartbeat = now - self.last_sent > 0.4
+
+        if changed or heartbeat:
+            try:
+                result = self.client.publish(
+                    MQTT_TOPIC_CMD, command, qos=0, retain=False)
+                if result.rc == paho_mqtt.MQTT_ERR_SUCCESS:
+                    self.last_cmd  = command
+                    self.last_sent = now
+            except Exception as e:
+                print(f"[MQTT] Publish error: {e}")
 
     def close(self):
-        self.client.loop_stop()
-        self.client.disconnect()
+        if hasattr(self, 'client'):
+            try:
+                self.client.loop_stop()
+                self.client.disconnect()
+            except Exception:
+                pass
 
 
 # ── Model loader ──────────────────────────────────────────────
@@ -125,7 +189,7 @@ def load_model():
     if not os.path.exists(MODEL_FILE):
         raise FileNotFoundError(
             f"Model not found: {MODEL_FILE}\n"
-            "Run train_model.py first."
+            "Run: python src/train_model.py"
         )
     with open(MODEL_FILE,   'rb') as f: model   = pickle.load(f)
     with open(ENCODER_FILE, 'rb') as f: encoder = pickle.load(f)
@@ -138,41 +202,43 @@ mp_draw      = mp.solutions.drawing_utils
 mp_hands_mod = mp.solutions.hands
 
 COMMAND_COLORS = {
-    "FORWARD": (0, 220, 100),
-    "REVERSE": (0, 120, 255),
-    "LEFT":    (200, 100, 255),
-    "RIGHT":   (255, 180, 0),
-    "STOP":    (60,  60,  220),
+    "FORWARD": (0,  220, 100),
+    "REVERSE": (0,  120, 255),
+    "LEFT":    (200,100, 255),
+    "RIGHT":   (255,180, 0),
+    "STOP":    (60, 60,  220),
 }
 
-def annotate_frame(frame, gesture, confidence, command):
-    h, w = frame.shape[:2]
+def annotate_frame(frame, gesture, confidence, command, mqtt_connected):
+    h, w      = frame.shape[:2]
     cmd_color = COMMAND_COLORS.get(command, (200, 200, 200))
 
     # Top bar
     cv2.rectangle(frame, (0, 0), (w, 90), (18, 18, 18), -1)
 
-    # Gesture label
-    conf_color = (0, 220, 100) if confidence >= CONFIDENCE_THRESHOLD \
-                               else (80, 80, 220)
+    # Gesture
+    conf_color = (0,220,100) if confidence >= CONFIDENCE_THRESHOLD \
+                             else (80,80,220)
     cv2.putText(frame, f"Gesture: {gesture}",
                 (16, 36), cv2.FONT_HERSHEY_SIMPLEX, 0.85, conf_color, 2)
 
     # Confidence bar
     bar_w = int(confidence * 200)
-    cv2.rectangle(frame, (16, 50), (216, 66), (50, 50, 50), -1)
-    cv2.rectangle(frame, (16, 50), (16 + bar_w, 66), conf_color, -1)
+    cv2.rectangle(frame, (16, 50), (216, 66), (50,50,50), -1)
+    cv2.rectangle(frame, (16, 50), (16+bar_w, 66), conf_color, -1)
     cv2.putText(frame, f"{confidence:.0%}",
                 (224, 64), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180,180,180), 1)
 
     # Command
     cv2.putText(frame, command,
-                (w - 180, 56), cv2.FONT_HERSHEY_SIMPLEX, 1.1, cmd_color, 2)
+                (w-180, 56), cv2.FONT_HERSHEY_SIMPLEX, 1.1, cmd_color, 2)
 
-    # Bottom strip
-    cv2.rectangle(frame, (0, h - 28), (w, h), (18, 18, 18), -1)
-    cv2.putText(frame, "LAPTOP MODE — HiveMQ MQTT",
-                (16, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100,100,100), 1)
+    # Bottom bar — show MQTT status
+    cv2.rectangle(frame, (0, h-28), (w, h), (18,18,18), -1)
+    mqtt_text  = "MQTT: HiveMQ ✓" if mqtt_connected else "MQTT: connecting..."
+    mqtt_color = (0,200,100) if mqtt_connected else (100,100,255)
+    cv2.putText(frame, f"LAPTOP MODE  |  {mqtt_text}",
+                (16, h-8), cv2.FONT_HERSHEY_SIMPLEX, 0.45, mqtt_color, 1)
 
     return frame
 
@@ -180,8 +246,7 @@ def annotate_frame(frame, gesture, confidence, command):
 # ── Inference thread ──────────────────────────────────────────
 def inference_thread(model, encoder):
     detector    = build_hand_detector(
-        MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE
-    )
+        MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE)
     sender      = MQTTSender()
     vote_buf    = FastVoteBuffer(CONFIDENCE_THRESHOLD)
 
@@ -192,13 +257,15 @@ def inference_thread(model, encoder):
 
     state["cam_connected"] = cap.isOpened()
     if not cap.isOpened():
-        print(f"[CAM] ERROR: Cannot open camera {CAM_INDEX}")
+        print(f"[CAM] ERROR: Cannot open camera index {CAM_INDEX}")
+        print("Change CAM_INDEX in config.py")
         return
-    print(f"[CAM] Camera opened {CAM_WIDTH}×{CAM_HEIGHT}")
 
-    fps     = 0.0
-    t_prev  = time.time()
-    gesture = "—"
+    print(f"[CAM] Opened {CAM_WIDTH}×{CAM_HEIGHT}")
+
+    fps          = 0.0
+    t_prev       = time.time()
+    gesture      = "—"
     confidence   = 0.0
     command      = "STOP"
     emit_counter = 0
@@ -221,7 +288,6 @@ def inference_thread(model, encoder):
                 mp_draw.DrawingSpec(color=(0,180,255), thickness=2, circle_radius=3),
                 mp_draw.DrawingSpec(color=(255,255,255), thickness=1),
             )
-
             features   = extract_features(lms).reshape(1, -1)
             proba      = model.predict_proba(features)[0]
             idx        = int(np.argmax(proba))
@@ -254,7 +320,10 @@ def inference_thread(model, encoder):
         t_prev = t_now
 
         # Annotate
-        display = annotate_frame(frame.copy(), gesture, confidence, command)
+        display = annotate_frame(
+            frame.copy(), gesture, confidence,
+            command, sender.connected
+        )
 
         with frame_lock:
             state["frame"]         = display
@@ -264,7 +333,7 @@ def inference_thread(model, encoder):
             state["fps"]           = round(fps, 1)
             state["car_connected"] = sender.connected
 
-        # Emit to browser via SocketIO ~10Hz
+        # Emit to browser ~10 Hz
         emit_counter += 1
         if emit_counter % 3 == 0:
             socketio.emit('state_update', {
@@ -291,13 +360,12 @@ def generate_frames():
         if frame is None:
             placeholder = np.zeros((480, 640, 3), dtype=np.uint8)
             cv2.putText(placeholder, "Camera initializing…",
-                        (160, 240), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8, (100, 100, 100), 2)
+                        (140, 240), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (100,100,100), 2)
             frame = placeholder
 
         ret, buf = cv2.imencode(
-            '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80]
-        )
+            '.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         if not ret:
             continue
 
@@ -337,33 +405,47 @@ def status():
 
 @app.route('/ping')
 def ping():
-    return jsonify({"status": "ok", "time": time.strftime("%H:%M:%S")})
+    return jsonify({"ok": True, "time": time.strftime("%H:%M:%S")})
+
+
+# ── SocketIO events ───────────────────────────────────────────
+@socketio.on('connect')
+def on_ws_connect():
+    print(f"[WS] Browser connected")
+
+@socketio.on('disconnect')
+def on_ws_disconnect():
+    print(f"[WS] Browser disconnected")
 
 
 # ── Entry point ───────────────────────────────────────────────
 if __name__ == '__main__':
     print("═" * 55)
     print("  Gesture Car — Laptop Development Mode")
-    print("  Commands sent via HiveMQ MQTT")
     print("═" * 55)
+    print(f"  MQTT Broker : {MQTT_BROKER}")
+    print(f"  MQTT Topic  : {MQTT_TOPIC_CMD}")
+    print(f"  Camera      : index {CAM_INDEX}")
+    print("─" * 55)
 
     model, encoder = load_model()
 
     t = threading.Thread(
-        target=inference_thread,
-        args=(model, encoder),
-        daemon=True,
-        name="InferenceThread",
+        target   = inference_thread,
+        args     = (model, encoder),
+        daemon   = True,
+        name     = "InferenceThread",
     )
     t.start()
     print(f"[THREAD] Inference thread started")
-    print(f"[SERVER] Dashboard → http://localhost:{FLASK_PORT}")
+    print(f"[SERVER] Open in browser: http://localhost:{FLASK_PORT}")
     print("─" * 55)
 
     socketio.run(
         app,
-        host=FLASK_HOST,
-        port=FLASK_PORT,
-        debug=False,
-        use_reloader=False,
+        host         = FLASK_HOST,
+        port         = FLASK_PORT,
+        debug        = False,
+        use_reloader = False,
+        allow_unsafe_werkzeug = True,
     )

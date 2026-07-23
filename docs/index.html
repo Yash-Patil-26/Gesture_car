@@ -507,22 +507,85 @@ function extractFeatures(landmarks) {
 // ONNX inference
 // ════════════════════════════════════════════════════════════
 async function classify(features) {
-  if (!onnxSession) return null;
-  try {
-    const tensor  = new ort.Tensor('float32', features, [1, 63]);
-    const results = await onnxSession.run({ float_input: tensor });
-    // Handle different output key names from skl2onnx versions
-    const probs = results['probabilities']?.data
-               || results[Object.keys(results)
-                    .find(k => k.toLowerCase().includes('prob'))]?.data;
-    if (!probs) return null;
-    let maxIdx = 0, maxProb = 0;
-    probs.forEach((v, i) => { if (v > maxProb) { maxProb = v; maxIdx = i; } });
-    return { label: labels[maxIdx] || '?', conf: maxProb };
-  } catch (e) {
-    console.warn('[ONNX] Inference error:', e);
-    return null;
-  }
+
+    if (!onnxSession)
+        return null;
+
+    try {
+
+        const tensor = new ort.Tensor(
+            "float32",
+            features,
+            [1, 63]
+        );
+
+        const feeds = {
+            float_input: tensor
+        };
+
+        const outputs = await onnxSession.run(feeds);
+
+        console.log("Outputs:", outputs);
+
+        const names = Object.keys(outputs);
+
+        let probabilityTensor = null;
+
+        for (const name of names) {
+
+            if (outputs[name] instanceof ort.Tensor) {
+
+                if (outputs[name].dims.length === 2) {
+
+                    probabilityTensor = outputs[name];
+                    break;
+
+                }
+
+            }
+
+        }
+
+        if (!probabilityTensor) {
+
+            console.error("Probability tensor not found.");
+
+            return null;
+
+        }
+
+        const probs = probabilityTensor.data;
+
+        let bestIndex = 0;
+
+        for (let i = 1; i < probs.length; i++) {
+
+            if (probs[i] > probs[bestIndex]) {
+
+                bestIndex = i;
+
+            }
+
+        }
+
+        return {
+
+            label: labels[bestIndex],
+
+            conf: probs[bestIndex]
+
+        };
+
+    }
+
+    catch (err) {
+
+        console.error("[ONNX]", err);
+
+        return null;
+
+    }
+
 }
 
 // ════════════════════════════════════════════════════════════
@@ -690,6 +753,9 @@ async function init() {
     onnxSession = await ort.InferenceSession.create('./model.onnx', {
       executionProviders: ['wasm'],
     });
+    console.log("Input Names:", onnxSession.inputNames);
+
+    console.log("Output Names:", onnxSession.outputNames);
 
     loadTxt.innerHTML = 'Loading gesture labels…';
     const resp = await fetch('./labels.json');

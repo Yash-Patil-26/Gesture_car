@@ -45,11 +45,22 @@ def main():
 
     # Convert to ONNX
     # Input: float32 array shape [batch, 63]
-    initial_type = [('float_input', FloatTensorType([None, 63]))]
-    onnx_model   = convert_sklearn(
+
+    initial_type = [
+        ('float_input', FloatTensorType([None, 63]))
+    ]
+
+    options = {
+        id(model): {
+            "zipmap": False
+        }
+    }
+
+    onnx_model = convert_sklearn(
         model,
-        initial_types  = initial_type,
-        target_opset   = 12,
+        initial_types=initial_type,
+        target_opset=12,
+        options=options,
     )
 
     with open(onnx_path, 'wb') as f:

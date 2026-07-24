@@ -750,7 +750,7 @@ async function init() {
     loadTxt.innerHTML = 'Downloading ML model…<br>'
       + '<small>~10MB · cached permanently after first load</small>';
 
-    onnxSession = await ort.InferenceSession.create('./model.onnx', {
+     onnxSession = await ort.InferenceSession.create('./model.onnx?v=2', {
       executionProviders: ['wasm'],
     });
     console.log("Input Names:", onnxSession.inputNames);

@@ -791,11 +791,11 @@ async function init() {
 // ════════════════════════════════════════════════════════════
 // Register service worker for offline caching
 // ════════════════════════════════════════════════════════════
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(() => console.log('[SW] Registered'))
-    .catch(err => console.warn('[SW] Failed:', err));
-}
+// if ('serviceWorker' in navigator) {
+//   navigator.serviceWorker.register('./sw.js')
+//     .then(() => console.log('[SW] Registered'))
+//     .catch(err => console.warn('[SW] Failed:', err));
+// }
 
 // Start everything
 init();

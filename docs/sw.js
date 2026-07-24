@@ -1,4 +1,3 @@
-// docs/sw.js
 // Service Worker — caches all app assets permanently
 // After first load with internet, app runs offline
 // model.onnx cached on first fetch — loads instantly after

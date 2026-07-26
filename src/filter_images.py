@@ -25,7 +25,7 @@ from config import GESTURES
 import mediapipe as mp
 
 # ── Configuration ──────────────────────────────────────────────
-KEEP_PER_GESTURE = 3500     # images to keep per gesture folder
+KEEP_PER_GESTURE = 1000     # images to keep per gesture folder
 MIN_DETECT_CONF  = 0.5      # below this → score zero
 SUPPORTED_EXT    = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 

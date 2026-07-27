@@ -7,175 +7,149 @@
 <style>
 /* ── Design tokens ─────────────────────────────────────────── */
 :root {
-  --bg:        #080b10;
-  --surface:   #0f1520;
-  --surface2:  #151d2e;
-  --border:    #1e2d45;
-  --text:      #e2e8f4;
-  --muted:     #4a6080;
-  --green:     #00e5a0;
-  --blue:      #38bdf8;
-  --amber:     #f59e0b;
-  --red:       #f43f5e;
-  --purple:    #a78bfa;
-
-  --cmd-FORWARD: var(--green);
-  --cmd-REVERSE: var(--blue);
-  --cmd-LEFT:    var(--purple);
-  --cmd-RIGHT:   var(--amber);
-  --cmd-STOP:    var(--red);
+  --bg:      #080b10;
+  --surface: #0f1520;
+  --surface2:#151d2e;
+  --border:  #1e2d45;
+  --text:    #e2e8f4;
+  --muted:   #4a6080;
+  --green:   #00e5a0;
+  --blue:    #38bdf8;
+  --amber:   #f59e0b;
+  --red:     #f43f5e;
+  --purple:  #a78bfa;
 }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  overflow: hidden; /* prevent any scroll on mobile */
+}
 
 body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
-  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  overflow-x: hidden;
+  height: 100dvh; /* dynamic viewport height — handles mobile browser chrome */
   -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
 }
 
-/* ── Loading screen ──────────────────────────────────────────── */
+/* ── Loading screen ─────────────────────────────────────────── */
 #load-screen {
-  position: fixed;
-  inset: 0;
+  position: fixed; inset: 0;
   background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  z-index: 999;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px; z-index: 999;
 }
 #load-screen.gone { display: none; }
-
 .spinner {
-  width: 44px; height: 44px;
+  width: 42px; height: 42px;
   border: 3px solid var(--border);
   border-top-color: var(--green);
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-.load-title {
-  font-size: 20px; font-weight: 700;
-  letter-spacing: -0.3px;
-}
+.load-title { font-size: 19px; font-weight: 700; }
 #load-msg {
   font-size: 13px; color: var(--muted);
-  text-align: center; line-height: 1.7;
-  max-width: 280px;
+  text-align: center; line-height: 1.7; max-width: 260px;
 }
 
 /* ── Connection overlay ─────────────────────────────────────── */
 #conn-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(8,11,16,0.92);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  z-index: 800;
-  padding: 24px;
-  text-align: center;
-  backdrop-filter: blur(4px);
+  position: fixed; inset: 0;
+  background: rgba(8,11,16,0.93);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; z-index: 800;
+  padding: 28px; text-align: center;
+  backdrop-filter: blur(6px);
 }
 #conn-overlay.gone { display: none; }
-
-.conn-icon { font-size: 52px; }
-#conn-overlay h2 { font-size: 22px; font-weight: 800; }
-#conn-overlay p {
+.conn-icon { font-size: 54px; line-height: 1; }
+#conn-title { font-size: 24px; font-weight: 800; }
+#conn-desc {
   font-size: 14px; color: var(--muted);
-  line-height: 1.8; max-width: 300px;
+  line-height: 1.75; max-width: 290px;
 }
-.conn-state-badge {
-  padding: 10px 24px;
-  border-radius: 40px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+.conn-badge {
+  padding: 9px 22px; border-radius: 40px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.2px;
 }
-.conn-state-badge.connecting {
+.conn-badge.amber {
   background: rgba(245,158,11,0.15);
-  border: 1px solid var(--amber);
-  color: var(--amber);
+  border: 1px solid var(--amber); color: var(--amber);
 }
-.conn-state-badge.busy {
+.conn-badge.red {
   background: rgba(244,63,94,0.15);
-  border: 1px solid var(--red);
-  color: var(--red);
+  border: 1px solid var(--red); color: var(--red);
 }
-.conn-state-badge.connected {
+.conn-badge.green {
   background: rgba(0,229,160,0.15);
-  border: 1px solid var(--green);
-  color: var(--green);
+  border: 1px solid var(--green); color: var(--green);
 }
 .overlay-btn {
-  background: var(--green);
-  border: none; border-radius: 12px;
-  padding: 13px 32px;
+  background: var(--green); border: none;
+  border-radius: 12px; padding: 14px 0;
   color: #000; font-size: 15px; font-weight: 800;
-  cursor: pointer; width: 100%; max-width: 280px;
+  cursor: pointer; width: 100%; max-width: 300px;
+  letter-spacing: 0.2px;
 }
 .overlay-btn:active { transform: scale(0.97); }
+.gone { display: none !important; }
 
-/* ── Header ──────────────────────────────────────────────────── */
+/* ── Header — fixed height, slim ───────────────────────────── */
 header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  padding: 10px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  padding: 9px 14px;
+  display: flex; justify-content: space-between; align-items: center;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
   z-index: 100;
 }
-.brand { display: flex; align-items: center; gap: 10px; }
-.brand-hex { font-size: 22px; }
-.brand h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.2px; }
-
-.status-pills { display: flex; gap: 6px; }
+.brand { display: flex; align-items: center; gap: 9px; }
+.brand-hex { font-size: 20px; }
+.brand h1 { font-size: 14px; font-weight: 700; }
+.pills { display: flex; gap: 5px; }
 .pill {
   font-size: 10px; font-weight: 600;
-  padding: 4px 10px; border-radius: 20px;
+  padding: 3px 9px; border-radius: 20px;
   border: 1px solid var(--border);
   color: var(--muted); background: var(--bg);
-  letter-spacing: 0.3px;
-  transition: all 0.25s;
-  white-space: nowrap;
+  transition: all 0.25s; white-space: nowrap;
 }
-.pill.on  { color: var(--green); border-color: var(--green); }
-.pill.err { color: var(--red);   border-color: var(--red);   }
-.pill.warn{ color: var(--amber); border-color: var(--amber); }
+.pill.on   { color: var(--green); border-color: var(--green); }
+.pill.err  { color: var(--red);   border-color: var(--red);   }
+.pill.warn { color: var(--amber); border-color: var(--amber); }
 
-/* ── Main layout ─────────────────────────────────────────────── */
+/* ── Layout: flex column, camera takes remaining space ──────── */
 main {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0; /* critical — allows flex children to shrink */
+  overflow: hidden;
 }
 
-/* ── CAMERA — the dominant hero ──────────────────────────────── */
+/* ── Camera — fills all available vertical space ────────────── */
 .cam-hero {
   position: relative;
   width: 100%;
+  flex: 1;          /* take ALL remaining space after header+controls+bar */
+  min-height: 0;    /* allow shrinking */
   background: #000;
-  /* 16:10 ratio gives more vertical space than 4:3 */
-  aspect-ratio: 16 / 10;
-  flex-shrink: 0;
   overflow: hidden;
 }
 
 #cam-canvas {
+  /* fill the hero exactly — object-fit handles aspect ratio */
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -183,236 +157,155 @@ main {
   transform: scaleX(-1);
 }
 
-/* Gesture name — large overlay directly on video */
+/* ── Overlays on camera ─────────────────────────────────────── */
 .gesture-overlay {
   position: absolute;
-  top: 16px; left: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  top: 12px; left: 14px;
   pointer-events: none;
+  display: flex; flex-direction: column; gap: 5px;
 }
 .gesture-name {
-  font-size: clamp(22px, 5vw, 36px);
-  font-weight: 900;
-  letter-spacing: -0.5px;
+  font-size: clamp(18px, 4.5vw, 30px);
+  font-weight: 900; letter-spacing: -0.3px;
   color: var(--green);
-  text-shadow: 0 0 20px rgba(0,229,160,0.4);
-  line-height: 1;
-  transition: color 0.15s;
+  text-shadow: 0 0 18px rgba(0,229,160,0.4);
+  line-height: 1; transition: color 0.15s;
 }
-.gesture-name.no-hand { color: var(--muted); }
-
-.conf-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.gesture-name.no-hand { color: var(--muted); text-shadow: none; }
+.conf-strip { display: flex; align-items: center; gap: 7px; }
 .conf-track {
-  width: 140px; height: 4px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 2px;
-  overflow: hidden;
+  width: 120px; height: 3px;
+  background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;
 }
 .conf-fill {
-  height: 100%;
-  background: var(--green);
-  border-radius: 2px;
-  width: 0;
-  transition: width 0.1s;
+  height: 100%; background: var(--green);
+  border-radius: 2px; width: 0; transition: width 0.1s;
 }
 .conf-pct {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.6);
-  font-family: monospace;
+  font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.5); font-family: monospace;
 }
 
-/* FPS and latency — top right of camera */
 .cam-meta {
-  position: absolute;
-  top: 16px; right: 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
+  position: absolute; top: 12px; right: 14px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
   pointer-events: none;
 }
 .cam-badge {
   background: rgba(0,0,0,0.6);
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 10px;
-  font-family: monospace;
-  color: rgba(255,255,255,0.5);
+  padding: 2px 7px; border-radius: 4px;
+  font-size: 10px; font-family: monospace;
+  color: rgba(255,255,255,0.45);
 }
 
-/* Active command — bottom left of camera */
 .cmd-overlay {
-  position: absolute;
-  bottom: 16px; left: 16px;
+  position: absolute; bottom: 12px; left: 14px;
   pointer-events: none;
 }
 .cmd-big {
-  font-size: clamp(28px, 8vw, 56px);
-  font-weight: 900;
-  letter-spacing: 3px;
-  line-height: 1;
+  font-size: clamp(26px, 7vw, 48px);
+  font-weight: 900; letter-spacing: 3px; line-height: 1;
   color: var(--red);
-  text-shadow: 0 0 30px rgba(244,63,94,0.5);
+  text-shadow: 0 0 24px rgba(244,63,94,0.5);
   transition: color 0.12s, text-shadow 0.12s;
 }
-.cmd-big.FORWARD {
-  color: var(--green);
-  text-shadow: 0 0 30px rgba(0,229,160,0.5);
-}
-.cmd-big.REVERSE {
-  color: var(--blue);
-  text-shadow: 0 0 30px rgba(56,189,248,0.5);
-}
-.cmd-big.LEFT {
-  color: var(--purple);
-  text-shadow: 0 0 30px rgba(167,139,250,0.5);
-}
-.cmd-big.RIGHT {
-  color: var(--amber);
-  text-shadow: 0 0 30px rgba(245,158,11,0.5);
-}
+.cmd-big.FORWARD { color: var(--green); text-shadow: 0 0 24px rgba(0,229,160,0.5); }
+.cmd-big.REVERSE { color: var(--blue);  text-shadow: 0 0 24px rgba(56,189,248,0.5); }
+.cmd-big.LEFT    { color: var(--purple);text-shadow: 0 0 24px rgba(167,139,250,0.5); }
+.cmd-big.RIGHT   { color: var(--amber); text-shadow: 0 0 24px rgba(245,158,11,0.5); }
 
-/* ── Controls panel — compact strip below camera ─────────────── */
+/* ── Controls — fixed compact height ────────────────────────── */
 .controls-panel {
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 16px;
+  padding: 10px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0; /* never shrink — camera shrinks instead */
 }
 
-/* D-pad */
-.dpad {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-.dpad-row { display: flex; gap: 4px; }
+/* D-pad — compact */
+.dpad { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.dpad-row { display: flex; gap: 3px; }
 .dpad-btn {
-  width: 52px; height: 52px;
-  border-radius: 10px;
+  width: 46px; height: 46px; border-radius: 9px;
   background: var(--surface2);
   border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px; color: var(--muted);
+  font-size: 16px; color: var(--muted);
   transition: all 0.1s;
 }
 .dpad-btn.lit {
   background: rgba(0,229,160,0.12);
-  border-color: var(--green);
-  color: var(--green);
-  box-shadow: 0 0 12px rgba(0,229,160,0.25);
+  border-color: var(--green); color: var(--green);
+  box-shadow: 0 0 10px rgba(0,229,160,0.22);
 }
 .dpad-btn.lit.stop {
   background: rgba(244,63,94,0.12);
-  border-color: var(--red);
-  color: var(--red);
-  box-shadow: 0 0 12px rgba(244,63,94,0.25);
+  border-color: var(--red); color: var(--red);
+  box-shadow: 0 0 10px rgba(244,63,94,0.22);
 }
 
 /* Start button */
 .start-btn {
-  flex: 1;
-  min-width: 160px;
-  max-width: 280px;
-  height: 68px;
-  border: none;
-  border-radius: 14px;
-  background: var(--green);
-  color: #000;
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: all 0.15s;
+  flex: 1; max-width: 260px;
+  height: 62px;
+  border: none; border-radius: 13px;
+  background: var(--green); color: #000;
+  font-size: 15px; font-weight: 800;
+  cursor: pointer; transition: all 0.15s;
+  letter-spacing: 0.2px;
 }
-.start-btn.running {
-  background: var(--red);
-  color: #fff;
-}
+.start-btn.running { background: var(--red); color: #fff; }
 .start-btn:active { transform: scale(0.97); }
 
-/* ── Status bar — always visible at bottom ───────────────────── */
+/* ── Status bar — slim fixed bottom ─────────────────────────── */
 .status-bar {
   background: var(--surface);
   border-top: 1px solid var(--border);
-  padding: 10px 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  padding: 7px 14px;
+  display: flex; align-items: center; gap: 8px;
   flex-shrink: 0;
 }
 .status-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: var(--muted);
-  flex-shrink: 0;
-  transition: all 0.3s;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0; transition: all 0.3s;
 }
-.status-dot.on   { background: var(--green); box-shadow: 0 0 6px var(--green); }
-.status-dot.err  { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+.status-dot.on   { background: var(--green); box-shadow: 0 0 5px var(--green); }
+.status-dot.err  { background: var(--red);   box-shadow: 0 0 5px var(--red); }
 .status-dot.warn { background: var(--amber); animation: pulse 1.2s ease-in-out infinite; }
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
-.status-text {
-  flex: 1;
-  font-size: 12px;
-  color: var(--muted);
-}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+.status-text { flex: 1; font-size: 11px; color: var(--muted); }
 .status-text strong { color: var(--text); }
-.latency-badge {
-  font-size: 10px;
-  font-family: monospace;
-  color: var(--muted);
-  background: var(--surface2);
-  padding: 3px 8px;
-  border-radius: 5px;
+.lat-tag {
+  font-size: 10px; font-family: monospace;
+  color: var(--muted); background: var(--surface2);
+  padding: 2px 7px; border-radius: 4px;
   border: 1px solid var(--border);
 }
 
-/* ── Responsive: desktop side-by-side ───────────────────────── */
+/* ── Desktop: side by side ───────────────────────────────────── */
 @media (min-width: 900px) {
-  main {
-    flex-direction: row;
-    flex: 1;
-    overflow: hidden;
-  }
+  body { overflow: hidden; }
+  main { flex-direction: row; }
   .cam-hero {
     flex: 1;
-    aspect-ratio: unset;
-    height: 100%;
+    /* on desktop camera fills column height naturally */
   }
   .right-panel {
-    width: 320px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
+    width: 300px; flex-shrink: 0;
+    display: flex; flex-direction: column;
     border-left: 1px solid var(--border);
-    overflow-y: auto;
   }
   .controls-panel {
-    flex-direction: column;
-    align-items: stretch;
-    flex: 1;
-    padding: 20px;
+    flex: 1; flex-direction: column;
+    justify-content: center; padding: 20px;
   }
-  .dpad { align-items: center; }
+  .dpad { align-self: center; }
   .start-btn { max-width: 100%; }
 }
-
 @media (max-width: 899px) {
   .right-panel { display: contents; }
 }
@@ -420,72 +313,66 @@ main {
 </head>
 <body>
 
-<!-- ── Loading screen ── -->
+<!-- Loading -->
 <div id="load-screen">
   <div class="spinner"></div>
   <div class="load-title">⬡ Gesture RC Car</div>
   <p id="load-msg">Loading ML model…<br>
-    <small style="color:#2a4060">First load ~15s</small></p>
+    <small style="color:#2a4060">First load ~15s · cached after</small></p>
 </div>
 
-<!-- ── Connection overlay ── -->
+<!-- Connection overlay — same design for all states needing user attention -->
 <div id="conn-overlay" class="gone">
   <div class="conn-icon" id="conn-icon">📡</div>
   <h2 id="conn-title">Connecting</h2>
   <p id="conn-desc">Reaching MQTT broker…</p>
-  <div class="conn-state-badge connecting" id="conn-badge">Connecting…</div>
-  <button class="overlay-btn gone" id="conn-retry-btn">↺ Retry</button>
+  <div class="conn-badge amber" id="conn-badge">Connecting…</div>
+  <button class="overlay-btn gone" id="retry-btn">↺ Retry</button>
 </div>
 
-<!-- ── Header ── -->
+<!-- Header -->
 <header>
   <div class="brand">
     <span class="brand-hex">⬡</span>
     <h1>Gesture RC Car</h1>
   </div>
-  <div class="status-pills">
+  <div class="pills">
     <span class="pill" id="p-cam">Cam</span>
     <span class="pill" id="p-ml">ML</span>
     <span class="pill" id="p-car">Car</span>
   </div>
 </header>
 
-<!-- ── Main ── -->
+<!-- Main -->
 <main>
-
-  <!-- Camera — dominant hero -->
+  <!-- Camera hero — fills remaining vertical space -->
   <div class="cam-hero">
     <canvas id="cam-canvas"></canvas>
 
-    <!-- Gesture name + confidence — top left -->
+    <!-- Top left: gesture name + confidence -->
     <div class="gesture-overlay">
       <div class="gesture-name no-hand" id="g-name">No hand</div>
       <div class="conf-strip">
-        <div class="conf-track">
-          <div class="conf-fill" id="c-fill"></div>
-        </div>
+        <div class="conf-track"><div class="conf-fill" id="c-fill"></div></div>
         <span class="conf-pct" id="c-pct">0%</span>
       </div>
     </div>
 
-    <!-- FPS + latency — top right -->
+    <!-- Top right: fps + latency -->
     <div class="cam-meta">
       <div class="cam-badge" id="fps-badge">0 fps</div>
       <div class="cam-badge" id="lat-badge">—</div>
     </div>
 
-    <!-- Active command — bottom left -->
+    <!-- Bottom left: active command -->
     <div class="cmd-overlay">
       <div class="cmd-big STOP" id="cmd-big">STOP</div>
     </div>
   </div>
 
-  <!-- Right panel (desktop) / below camera (mobile) -->
+  <!-- Right panel (desktop) / inline (mobile) -->
   <div class="right-panel">
-
-    <!-- Controls -->
     <div class="controls-panel">
-
       <!-- D-pad -->
       <div class="dpad">
         <div class="dpad-btn" id="d-FORWARD">▲</div>
@@ -496,58 +383,50 @@ main {
         </div>
         <div class="dpad-btn" id="d-REVERSE">▼</div>
       </div>
-
-      <!-- Start / Stop button -->
+      <!-- Start/Stop -->
       <button class="start-btn" id="start-btn">▶ Start Control</button>
-
     </div>
-
   </div>
-
 </main>
 
-<!-- ── Status bar — always at bottom ── -->
+<!-- Status bar -->
 <div class="status-bar">
   <div class="status-dot" id="s-dot"></div>
-  <span class="status-text" id="s-text">
-    <strong>Initialising…</strong>
-  </span>
-  <div class="latency-badge gone" id="lat-pill"></div>
+  <span class="status-text" id="s-text"><strong>Initialising…</strong></span>
+  <div class="lat-tag gone" id="lat-pill">—</div>
 </div>
 
-<!-- Dependencies -->
 <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js" crossorigin="anonymous"></script>
 
 <script>
-// ════════════════════════════════════════════════════════════
-// CONFIG — update BROKER_URL with YOUR HiveMQ cluster
-// ════════════════════════════════════════════════════════════
+
 const BROKER_URL    = 'wss://29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud:8884/mqtt';
 const BROKER_USER   = 'Mudron';
 const BROKER_PASS   = '26crGesture';
 const TOPIC_CMD     = 'gesturecar/command';
 const TOPIC_STATUS  = 'gesturecar/status';
-const CLIENT_ID     = 'gesture_phone_' + Math.random().toString(16).substr(2,8);
+const CLIENT_ID    = 'gesture_phone_' + Math.random().toString(16).slice(2, 10);
 const CONF_MIN     = 0.85;
 const VOTES        = 3;
 
 // ════════════════════════════════════════════════════════════
 // State
 // ════════════════════════════════════════════════════════════
-let session, labels = [];
+let onnxSession, labels = [];
 let mqttClient;
-let running      = false;
-let carOnline    = false;
-let carBusy      = false;
-let voteBuf      = [], lastStable = 'STOP';
-let lastSentCmd  = null, lastSentTime = 0;
+let running     = false;
+let carOnline   = false;
+let carBusy     = false;
+let voteBuf     = [], lastStable = 'STOP';
+let lastSentCmd = null, lastSentTime = 0;
 let fpsCnt = 0, fpsTimer = performance.now();
 let cameraInst, handsInst;
-let pingStart    = 0;
-let latencyMs    = 0;
+let pingStart   = 0;
+let latencyMs   = 0;
+let pingTimer   = null; // reference to periodic ping interval
 
 // ════════════════════════════════════════════════════════════
 // DOM
@@ -572,210 +451,232 @@ const DPAD = ['FORWARD','REVERSE','LEFT','RIGHT','STOP']
   .reduce((o, k) => ({ ...o, [k]: document.getElementById('d-'+k) }), {});
 
 // ════════════════════════════════════════════════════════════
-// Connection states — 4 clear states
+// Connection state machine
+// 5 states — each renders overlay + status bar consistently
 // ════════════════════════════════════════════════════════════
-const CONN_STATES = {
+const STATES = {
   BROKER_CONNECTING: {
-    icon:  '📡',
-    title: 'Connecting',
-    desc:  'Reaching MQTT broker…',
-    badge: 'Connecting…',
-    cls:   'connecting',
-    dot:   'warn',
-    statusMsg: '<strong>Connecting to broker…</strong>',
-    showOverlay: false,   // show only in status bar while loading model
-    showRetry: false,
+    overlay:  false,
+    icon:     '📡',
+    title:    'Connecting',
+    desc:     'Reaching MQTT broker…',
+    badge:    'Connecting…',
+    badgeCls: 'amber',
+    retry:    false,
+    dot:      'warn',
+    status:   '<strong>Connecting to broker…</strong>',
+    carPill:  '',
   },
   WAITING_FOR_CAR: {
-    icon:  '🚗',
-    title: 'Car Offline',
-    desc:  'Broker connected. Power on the car and make sure it is connected to WiFi.',
-    badge: 'Device not connected',
-    cls:   'connecting',
-    dot:   'warn',
-    statusMsg: '<strong>Device not connected</strong> — power on car and check WiFi',
-    showOverlay: true,
-    showRetry: true,
+    overlay:  true,
+    icon:     '🚗',
+    title:    'Car Offline',
+    desc:     'Broker connected. Power on the car and make sure it is connected to WiFi.',
+    badge:    'Device not connected',
+    badgeCls: 'amber',
+    retry:    true,
+    dot:      'warn',
+    status:   '<strong>Device not connected</strong> — power on car',
+    carPill:  'warn',
   },
   CAR_CONNECTED: {
-    icon:  '✅',
-    title: 'Connected',
-    desc:  'Car is online and ready.',
-    badge: 'Connected successfully',
-    cls:   'connected',
-    dot:   'on',
-    statusMsg: '<strong>Connected successfully</strong> — car is ready',
-    showOverlay: false,
-    showRetry: false,
+    overlay:  false,
+    icon:     '✅',
+    title:    'Connected',
+    desc:     '',
+    badge:    'Connected successfully',
+    badgeCls: 'green',
+    retry:    false,
+    dot:      'on',
+    status:   '<strong>Connected successfully</strong> — car is ready',
+    carPill:  'on',
   },
   CAR_BUSY: {
-    icon:  '🔒',
-    title: 'Try Later!',
-    desc:  'Device already connected by another user. Ask them to close the app and try again.',
-    badge: 'Device already connected',
-    cls:   'busy',
-    dot:   'err',
-    statusMsg: '<strong>Try later!</strong> Device already connected by another user',
-    showOverlay: true,
-    showRetry: true,
+    overlay:  true,
+    icon:     '🔒',
+    title:    'Try Later!',
+    desc:     'Device already connected by another user. Ask them to close the app, then retry.',
+    badge:    'Device already connected',
+    badgeCls: 'red',
+    retry:    true,
+    dot:      'err',
+    status:   '<strong>Try later!</strong> Device already connected by another user',
+    carPill:  'err',
   },
   BROKER_ERROR: {
-    icon:  '⚠️',
-    title: 'Connection Failed',
-    desc:  'Could not reach the MQTT broker. Check your internet connection.',
-    badge: 'Connection error',
-    cls:   'busy',
-    dot:   'err',
-    statusMsg: '<strong>Connection error</strong> — check internet connection',
-    showOverlay: true,
-    showRetry: true,
+    overlay:  true,
+    icon:     '⚠️',
+    title:    'Connection Failed',
+    desc:     'Could not reach the MQTT broker. Check your internet connection.',
+    badge:    'Connection error',
+    badgeCls: 'red',
+    retry:    true,
+    dot:      'err',
+    status:   '<strong>Connection error</strong> — check internet',
+    carPill:  'err',
   },
 };
 
-function applyState(stateKey) {
-  const s = CONN_STATES[stateKey];
+let currentState = null;
+
+function setState(key) {
+  if (currentState === key) return; // no re-render if same state
+  currentState = key;
+  const s = STATES[key];
   if (!s) return;
 
-  // Overlay
-  const overlay    = document.getElementById('conn-overlay');
-  const retryBtn   = document.getElementById('conn-retry-btn');
-  const icon       = document.getElementById('conn-icon');
-  const title      = document.getElementById('conn-title');
-  const desc       = document.getElementById('conn-desc');
-  const badge      = document.getElementById('conn-badge');
+  // ── Overlay ────────────────────────────────────────────────
+  const overlay = document.getElementById('conn-overlay');
+  const retryBtn= document.getElementById('retry-btn');
+  const badge   = document.getElementById('conn-badge');
 
-  icon.textContent  = s.icon;
-  title.textContent = s.title;
-  desc.textContent  = s.desc;
+  document.getElementById('conn-icon').textContent  = s.icon;
+  document.getElementById('conn-title').textContent = s.title;
+  document.getElementById('conn-desc').textContent  = s.desc;
   badge.textContent = s.badge;
-  badge.className   = 'conn-state-badge ' + s.cls;
-  retryBtn.classList.toggle('gone', !s.showRetry);
+  badge.className   = 'conn-badge ' + s.badgeCls;
+  retryBtn.classList.toggle('gone', !s.retry);
+  overlay.classList.toggle('gone', !s.overlay);
 
-  // Show overlay for states that need user attention
-  if (s.showOverlay) {
-    overlay.classList.remove('gone');
-  } else {
-    overlay.classList.add('gone');
-  }
+  // ── Status bar ─────────────────────────────────────────────
+  sDot.className  = 'status-dot ' + s.dot;
+  sTxt.innerHTML  = s.status;
 
-  // Status bar
-  sDot.className   = 'status-dot ' + s.dot;
-  sTxt.innerHTML   = s.statusMsg;
-
-  // Header pill
-  pCar.className   = 'pill ' + (s.dot === 'on' ? 'on' : s.dot === 'warn' ? 'warn' : 'err');
-  pCar.textContent = stateKey === 'CAR_CONNECTED' ? 'Car ✓' : 'Car';
-
-  // Latency badge — only show when connected
-  if (stateKey === 'CAR_CONNECTED' && latencyMs > 0) {
+  // Latency pill — only when connected
+  if (key === 'CAR_CONNECTED' && latencyMs > 0) {
     latPill.textContent = latencyMs + 'ms';
     latPill.classList.remove('gone');
   } else {
     latPill.classList.add('gone');
   }
+
+  // ── Header Car pill ────────────────────────────────────────
+  pCar.className  = 'pill' + (s.carPill ? ' ' + s.carPill : '');
+  pCar.textContent= key === 'CAR_CONNECTED' ? 'Car ✓' : 'Car';
 }
 
 // ════════════════════════════════════════════════════════════
-// MQTT
+// MQTT connection
 // ════════════════════════════════════════════════════════════
 function connectMQTT() {
-  applyState('BROKER_CONNECTING');
+  setState('BROKER_CONNECTING');
+
+  // Clean up existing connection
+  if (mqttClient) {
+    try { mqttClient.end(true); } catch(_) {}
+    mqttClient = null;
+  }
 
   mqttClient = mqtt.connect(BROKER_URL, {
     username:        BROKER_USER,
     password:        BROKER_PASS,
     clientId:        CLIENT_ID,
     keepalive:       30,
-    reconnectPeriod: 4000,
+    reconnectPeriod: 0,      // we handle reconnect manually via retry btn
     connectTimeout:  12000,
     clean:           true,
   });
 
   mqttClient.on('connect', () => {
     console.log('[MQTT] Broker connected');
-    // Subscribe to car status
+    carBusy = false;
+
     mqttClient.subscribe(TOPIC_STATUS, err => {
-      if (!err) {
-        // Ping car to check if it is online
-        pingStart = Date.now();
-        mqttClient.publish(TOPIC_CMD, 'PING');
-        // Wait 4s for response — if none, car is offline
-        setTimeout(() => {
-          if (!carOnline && !carBusy) {
-            applyState('WAITING_FOR_CAR');
+      if (err) { console.error('[MQTT] Subscribe error:', err); return; }
+      console.log('[MQTT] Subscribed to', TOPIC_STATUS);
+
+      // Initial ping to check if car already online
+      pingStart = Date.now();
+      mqttClient.publish(TOPIC_CMD, 'PING');
+
+      // Wait 5s for initial response
+      // If nothing comes back, car is offline
+      setTimeout(() => {
+        if (!carOnline && !carBusy) {
+          setState('WAITING_FOR_CAR');
+        }
+      }, 5000);
+
+      // Start 60-second periodic ping — changed from 12s as requested
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = setInterval(() => {
+        if (mqttClient?.connected) {
+          pingStart = Date.now();
+          mqttClient.publish(TOPIC_CMD, 'PING');
+          // If car was online but doesn't respond within 8s, mark offline
+          if (carOnline) {
+            setTimeout(() => {
+              // Date.now() - pingStart >= 7900 means no ALIVE came back
+              if (Date.now() - pingStart >= 7900 && carOnline && !carBusy) {
+                carOnline = false;
+                setState('WAITING_FOR_CAR');
+              }
+            }, 8000);
           }
-        }, 4000);
-      }
+        }
+      }, 60000); // 60 seconds as requested
     });
   });
 
   mqttClient.on('message', (topic, payload) => {
     const msg = payload.toString();
+    console.log('[MQTT] Message:', topic, msg);
 
     if (topic === TOPIC_STATUS) {
+
+      // Car came online or sent heartbeat
       if (msg === 'ONLINE' || msg === 'ALIVE') {
         if (!carBusy) {
-          carOnline   = true;
-          latencyMs   = Date.now() - pingStart;
-          latBadge.textContent = latencyMs + 'ms';
-          applyState('CAR_CONNECTED');
-          // Update latency badge every 10s
-          pingStart = Date.now();
+          carOnline = true;
+          latencyMs = Math.max(Date.now() - pingStart, 0);
+          latBadge.textContent = latencyMs + 'ms via cloud';
+          // Update latency pill if visible
+          if (currentState === 'CAR_CONNECTED') {
+            latPill.textContent = latencyMs + 'ms';
+            latPill.classList.remove('gone');
+          }
+          setState('CAR_CONNECTED');
         }
+        return;
       }
+
+      // Car rejected — already busy
+      // Same overlay pattern as Car Offline — consistent design
       if (msg.startsWith('BUSY:')) {
         carBusy   = true;
         carOnline = false;
-        applyState('CAR_BUSY');
+        setState('CAR_BUSY');
+        return;
       }
     }
   });
 
-  mqttClient.on('reconnect', () => {
-    carOnline = false;
-    if (!carBusy) applyState('BROKER_CONNECTING');
-  });
-
   mqttClient.on('error', err => {
-    console.error('[MQTT]', err.message);
-    applyState('BROKER_ERROR');
+    console.error('[MQTT] Error:', err.message);
+    setState('BROKER_ERROR');
   });
 
-  mqttClient.on('offline', () => {
-    carOnline = false;
-    if (!carBusy) applyState('BROKER_CONNECTING');
+  mqttClient.on('close', () => {
+    if (!carBusy) {
+      carOnline = false;
+      // Only update state if not already showing a more specific error
+      if (currentState === 'CAR_CONNECTED' || currentState === 'BROKER_CONNECTING') {
+        setState('BROKER_CONNECTING');
+      }
+    }
   });
 }
 
-// Retry button
-document.getElementById('conn-retry-btn').addEventListener('click', () => {
+// ── Retry button ───────────────────────────────────────────
+document.getElementById('retry-btn').addEventListener('click', () => {
   carBusy   = false;
   carOnline = false;
-  document.getElementById('conn-overlay').classList.add('gone');
-  if (mqttClient) {
-    mqttClient.end(true, () => connectMQTT());
-  } else {
-    connectMQTT();
-  }
+  currentState = null; // force re-render on next setState
+  connectMQTT();
 });
 
-// Periodic car ping
-setInterval(() => {
-  if (mqttClient?.connected) {
-    pingStart = Date.now();
-    mqttClient.publish(TOPIC_CMD, 'PING');
-    // If no response in 6s, mark car offline
-    setTimeout(() => {
-      if (Date.now() - pingStart >= 5900 && carOnline && !carBusy) {
-        carOnline = false;
-        applyState('WAITING_FOR_CAR');
-      }
-    }, 6000);
-  }
-}, 12000);
-
 // ════════════════════════════════════════════════════════════
-// Send command
+// Send command via MQTT
 // ════════════════════════════════════════════════════════════
 function sendCmd(cmd) {
   const now     = Date.now();
@@ -789,9 +690,10 @@ function sendCmd(cmd) {
 }
 
 // ════════════════════════════════════════════════════════════
-// Cleanup on tab close
+// Cleanup on tab/page close
 // ════════════════════════════════════════════════════════════
 function cleanup() {
+  if (pingTimer) clearInterval(pingTimer);
   if (mqttClient?.connected) {
     mqttClient.publish(TOPIC_CMD, 'STOP', { qos: 0 });
   }
@@ -804,7 +706,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ════════════════════════════════════════════════════════════
-// Vote buffer — asymmetric response
+// Vote buffer — instant STOP, 3-frame motion
 // ════════════════════════════════════════════════════════════
 function vote(label, conf, hand) {
   if (!hand || conf < CONF_MIN) {
@@ -816,14 +718,13 @@ function vote(label, conf, hand) {
   }
   voteBuf.push(cmd);
   if (voteBuf.length > VOTES) voteBuf.shift();
-  if (voteBuf.length >= VOTES && voteBuf.every(v => v === voteBuf[0])) {
+  if (voteBuf.length >= VOTES && voteBuf.every(v => v === voteBuf[0]))
     lastStable = voteBuf[0];
-  }
   return lastStable;
 }
 
 // ════════════════════════════════════════════════════════════
-// Feature extraction
+// Feature extraction — wrist-origin + scale normalise
 // ════════════════════════════════════════════════════════════
 function extractFeat(lms) {
   const wx = lms[0].x, wy = lms[0].y, wz = lms[0].z;
@@ -837,10 +738,10 @@ function extractFeat(lms) {
 // ONNX inference
 // ════════════════════════════════════════════════════════════
 async function classify(f) {
-  if (!session) return null;
+  if (!onnxSession) return null;
   try {
     const t = new ort.Tensor('float32', f, [1, 63]);
-    const r = await session.run({ float_input: t });
+    const r = await onnxSession.run({ float_input: t });
     const p = r['probabilities']?.data
            || r[Object.keys(r).find(k => k.toLowerCase().includes('prob'))]?.data;
     if (!p) return null;
@@ -851,7 +752,7 @@ async function classify(f) {
 }
 
 // ════════════════════════════════════════════════════════════
-// Draw landmarks
+// Draw hand landmarks on canvas
 // ════════════════════════════════════════════════════════════
 const CONNS = [
   [0,1],[1,2],[2,3],[3,4],
@@ -861,30 +762,31 @@ const CONNS = [
   [0,17],[17,18],[18,19],[19,20],
   [5,9],[9,13],[13,17],
 ];
-const TIPS = new Set([4, 8, 12, 16, 20]);
+const TIPS = new Set([4,8,12,16,20]);
 
 function drawLandmarks(lms) {
   const w = canvas.width, h = canvas.height;
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.38)';
   ctx.lineWidth   = 1.5;
   for (const [a, b] of CONNS) {
     ctx.beginPath();
-    ctx.moveTo(lms[a].x * w, lms[a].y * h);
-    ctx.lineTo(lms[b].x * w, lms[b].y * h);
+    ctx.moveTo(lms[a].x*w, lms[a].y*h);
+    ctx.lineTo(lms[b].x*w, lms[b].y*h);
     ctx.stroke();
   }
   lms.forEach((l, i) => {
     ctx.beginPath();
-    ctx.arc(l.x * w, l.y * h, i === 0 ? 6 : TIPS.has(i) ? 5 : 3, 0, Math.PI * 2);
-    ctx.fillStyle = i === 0 ? '#f59e0b' : TIPS.has(i) ? '#00e5a0' : '#38bdf8';
+    ctx.arc(l.x*w, l.y*h, i===0?6:TIPS.has(i)?5:3, 0, Math.PI*2);
+    ctx.fillStyle = i===0?'#f59e0b':TIPS.has(i)?'#00e5a0':'#38bdf8';
     ctx.fill();
   });
 }
 
 // ════════════════════════════════════════════════════════════
-// MediaPipe result
+// MediaPipe result handler — every frame
 // ════════════════════════════════════════════════════════════
 async function onResults(res) {
+  // Match canvas to actual video dimensions
   canvas.width  = res.image.width;
   canvas.height = res.image.height;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -898,8 +800,8 @@ async function onResults(res) {
     drawLandmarks(lms);
     const f = extractFeat(lms);
     if (f) {
-      const r = await classify(f);
-      if (r) { gesture = r.label; conf = r.conf; }
+      const result = await classify(f);
+      if (result) { gesture = result.label; conf = result.conf; }
     }
   }
 
@@ -918,7 +820,7 @@ async function onResults(res) {
   cmdBig.textContent = cmd;
   cmdBig.className   = 'cmd-big ' + cmd;
 
-  // Update D-pad
+  // D-pad highlight
   Object.entries(DPAD).forEach(([k, el]) =>
     el.classList.toggle('lit', k === cmd));
 
@@ -930,16 +832,11 @@ async function onResults(res) {
     fpsCnt = 0; fpsTimer = now;
   }
 
-  // Update latency badge
-  if (latencyMs > 0) {
-    latBadge.textContent = latencyMs + 'ms via cloud';
-  }
-
   if (running) sendCmd(cmd);
 }
 
 // ════════════════════════════════════════════════════════════
-// Camera
+// Camera — request front camera at higher resolution
 // ════════════════════════════════════════════════════════════
 async function startCamera() {
   if (!handsInst) {
@@ -956,7 +853,11 @@ async function startCamera() {
   }
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+      video: {
+        facingMode: 'user',
+        width:  { ideal: 1280 },
+        height: { ideal: 720 },
+      }
     });
     const vid = document.createElement('video');
     vid.srcObject = stream;
@@ -969,12 +870,13 @@ async function startCamera() {
     pCam.textContent = 'Cam ✓';
   } catch (err) {
     pCam.classList.add('err');
+    console.error('[CAM]', err);
     alert('Camera access denied. Allow camera in browser settings and reload.');
   }
 }
 
 // ════════════════════════════════════════════════════════════
-// Start button
+// Start / Stop button
 // ════════════════════════════════════════════════════════════
 startBtn.addEventListener('click', async () => {
   if (!running) {
@@ -988,35 +890,40 @@ startBtn.addEventListener('click', async () => {
     startBtn.classList.remove('running');
     sendCmd('STOP');
     cameraInst?.stop(); cameraInst = null;
-    cmdBig.textContent = 'STOP'; cmdBig.className = 'cmd-big STOP';
+    cmdBig.textContent = 'STOP';
+    cmdBig.className   = 'cmd-big STOP';
     Object.values(DPAD).forEach(el => el.classList.remove('lit'));
   }
 });
 
 // ════════════════════════════════════════════════════════════
-// Load model and start
+// Init — load model then connect MQTT
 // ════════════════════════════════════════════════════════════
 async function init() {
   const loadMsg = document.getElementById('load-msg');
   try {
-    loadMsg.innerHTML = 'Downloading ML model…<br><small style="color:#2a4060">~10MB · one time</small>';
-    session = await ort.InferenceSession.create('./model.onnx', {
+    loadMsg.innerHTML = 'Downloading ML model…<br>'
+      + '<small style="color:#2a4060">~10MB · cached after first load</small>';
+
+    onnxSession = await ort.InferenceSession.create('./model.onnx', {
       executionProviders: ['wasm']
     });
 
     loadMsg.innerHTML = 'Loading gesture labels…';
     labels = (await (await fetch('./labels.json')).json()).labels;
+    console.log('[ML] Classes:', labels);
 
     // Hide load screen
     document.getElementById('load-screen').classList.add('gone');
     pMl.classList.add('on');
     pMl.textContent = 'ML ✓';
 
-    // Connect MQTT
+    // Connect to MQTT broker
     connectMQTT();
 
   } catch (err) {
-    loadMsg.innerHTML = `Load failed.<br><small style="color:#f43f5e">${err.message}</small>`;
+    loadMsg.innerHTML = 'Load failed.<br>'
+      + `<small style="color:#f43f5e">${err.message}</small>`;
     pMl.classList.add('err');
     console.error('[INIT]', err);
   }

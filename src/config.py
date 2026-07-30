@@ -21,7 +21,7 @@ CM_IMAGE     = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
 
 # ── Gestures ───────────────────────────────────────────────────
 GESTURES            = ["forward", "reverse", "left", "right", "stop"]
-SAMPLES_PER_GESTURE = 200
+SAMPLES_PER_GESTURE = 100
 
 # ── MediaPipe ──────────────────────────────────────────────────
 NUM_LANDMARKS           = 21

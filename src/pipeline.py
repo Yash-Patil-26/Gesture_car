@@ -47,8 +47,8 @@ from config import extract_features   # shared with app.py
 # Keep top KEEP_PER_GESTURE per gesture. Delete the rest.
 # ═══════════════════════════════════════════════════════════════
 
-KEEP_PER_GESTURE = 3500
-MIN_DETECT_CONF  = 0.5
+KEEP_PER_GESTURE = 2000
+MIN_DETECT_CONF  = 0.6
 SUPPORTED_EXT    = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 
 # Scoring weights — must sum to 1.0

@@ -1,56 +1,30 @@
-# ── Python ─────────────────────────────────────────────────────
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-*.egg
 *.egg-info/
-dist/
-build/
+dist/ build/
 
-# ── Virtual environment ─────────────────────────────────────────
-venv/
-env/
-ENV/
-.venv/
+# Venv
+venv/ env/ .venv/
 
-# ── Large training data ─────────────────────────────────────────
-# 135k+ images — never commit
+# Large data — never commit
 external_images/
-
-# Training CSV — regenerable from images + webcam
 data/gesture_data.csv
 
-# ── Trained model binaries ──────────────────────────────────────
-# .pkl files are regenerable from data
+# Trained pkl — regenerable
 model/gesture_model.pkl
 model/label_encoder.pkl
 
-# ── IDE and OS ──────────────────────────────────────────────────
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-Thumbs.db
-desktop.ini
+# IDE / OS
+.vscode/ .idea/
+.DS_Store Thumbs.db
 
-# ── Environment variables ───────────────────────────────────────
-.env
-.env.local
-*.env
+# Env vars
+.env .env.local
 
-# ── Logs ────────────────────────────────────────────────────────
-*.log
-logs/
+# Logs
+*.log logs/
 
-# ── Test artifacts ──────────────────────────────────────────────
-.pytest_cache/
-htmlcov/
-.coverage
-
-# ── INCLUDE these (needed for GitHub Pages) ─────────────────────
-# docs/model.onnx  — intentionally NOT ignored
-# docs/labels.json — intentionally NOT ignored
-# docs/index.html  — intentionally NOT ignored
-# outputs/confusion_matrix.png — include for README
+# docs/model.onnx  — NOT ignored (needed for GitHub Pages)
+# docs/labels.json — NOT ignored (needed for GitHub Pages)
+# outputs/confusion_matrix.png — NOT ignored (used in README)

@@ -2,26 +2,19 @@
 # Interactive webcam data collection tool.
 # Guides through recording N samples per gesture.
 # Enforces minimum hold time before recording starts.
-#
-# Run: python src/collect_data.py
 # ─────────────────────────────────────────────────────────────
 
-import cv2
-import csv
-import os
-import sys
-import time
+import cv2, csv, os, sys, time
+import mediapipe as mp
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import mediapipe as mp
 from config import (
     GESTURES, SAMPLES_PER_GESTURE, FEATURE_DIM,
     DATA_CSV, DATA_DIR,
     CAM_INDEX, CAM_WIDTH, CAM_HEIGHT,
     MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE,
-)
-from hand_utils import (
+    # Utilities now live in config.py
     build_hand_detector, process_frame,
     get_landmark_list, extract_features,
 )

@@ -1,38 +1,48 @@
+<div align="center">
+
 # Gesture RC Car
 
-Control a real RC car with hand gestures using your phone.
-No apps. No wearables. No laptop during demo.
+**Control a physical RC car with hand gestures — through your phone camera, entirely in the browser.**
 
-**Live demo →** `https://yash-patil-26.github.io/Gesture_Car/`
+<br/>
+
+[![Live Demo](https://img.shields.io/badge/Try%20It%20Live-00E5A0?style=for-the-badge&logoColor=black)](https://yash-patil-26.github.io/Gesture_Car/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-gray?style=for-the-badge)](LICENSE)
+[![Python](https://img.shields.io/badge/Python_3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Arduino](https://img.shields.io/badge/ESP8266-00979D?style=for-the-badge&logo=arduino&logoColor=white)](esp8266/)
+
+<br/>
+
+<!-- Replace with your actual demo GIF -->
+<!-- Record: open GitHub Pages on phone → show hand → car moves (15–20 seconds) -->
+<!-- Convert to GIF: ffmpeg -i demo.mp4 -vf "fps=15,scale=600:-1" demo.gif -->
+
+![Demo](docs/assets/demo.gif)
+
+*Open the URL. Show your hand. The car moves.*
+
+</div>
 
 ---
 
-## How It Works
-Phone camera → MediaPipe.js (hand landmarks)
-→ ONNX Random Forest (gesture classification)
-→ HiveMQ MQTT wss:// (cloud relay)
-→ ESP8266 (motor commands)
-→ L298N → 4 TT motors → car moves
+## The idea
 
-All ML inference runs in the browser.
-Commands travel through HiveMQ cloud MQTT broker.
-No local network required — works over any internet connection.
+Most gesture-controlled projects need a glove, a special sensor, or a laptop sitting next to the hardware. This one needs none of those. It runs entirely in a phone browser — no app install, no wearable, no dedicated server.
+
+You open a URL. The browser loads a trained ML model. Your front camera feeds hand landmarks into a Random Forest classifier. Commands travel through a cloud MQTT broker to an ESP8266 on the car. Close the tab and the car stops.
 
 ---
 
-## Demo — Anyone Can Use This
+## How it works
 
-Power on car
-ESP8266 connects to WiFi automatically
-Open on any phone with internet:
-https://yash-patil-26.github.io/Gesture_Car/
-Wait ~15s for ML model to load
-Green "Car" pill appears when car is online
-Tap Start → allow camera → show hand → car moves
-Close tab → car stops automatically
+Phone camera → MediaPipe (21 landmarks)
+→ Random Forest ONNX (gesture class, <5ms)
+→ HiveMQ wss:// (cloud MQTT relay, ~80ms)
+→ ESP8266 NodeMCU
+→ L298N → 4× TT motors
 
 
-No IP address. No hotspot setup. No laptop needed.
+The ML model runs locally on the phone — no camera frames ever leave the device. Only the classified command string (`FORWARD`, `LEFT`, etc.) is sent over the network.
 
 ---
 
@@ -40,161 +50,145 @@ No IP address. No hotspot setup. No laptop needed.
 
 | Gesture | Command |
 |---|---|
-| Open palm facing camera | FORWARD |
-| Closed fist | STOP |
-| Index finger pointing left | LEFT |
-| Index finger pointing right | RIGHT |
-| Thumbs down | REVERSE |
+| ✋ Open palm | Forward |
+| ✊ Closed fist | Stop |
+| ☝️ Index left | Left |
+| ☝️ Index right | Right |
+| 👎 Thumbs down | Reverse |
+
+A vote buffer requires 3 consecutive matching frames before triggering a motion command — eliminating noise from gesture transitions. Stop fires in a single frame.
 
 ---
 
 ## Hardware
 
-| Component | Detail |
+| Part | Detail |
 |---|---|
-| ESP8266 NodeMCU | WiFi + MQTT client + motor control |
-| L298N motor driver | Drives 4 TT motors |
-| 2× 18650 battery (7.4V series) | Power supply |
-| 4× TT motors + 65mm wheels | Movement |
-| Acrylic chassis (200×160mm) | Structure |
-| SPST switch | Master power |
+| ESP8266 NodeMCU | WiFi + MQTT subscriber + motor logic |
+| L298N motor driver | H-bridge, 2A/channel |
+| 4× TT motors | 3–6V, left/right pairs in parallel |
+| 2× 18650 (series) | 7.4V supply → L298N |
+| Acrylic chassis | 200×160mm base |
 
-### Pin Mapping
-
-| NodeMCU | GPIO | L298N | Function |
-|---|---|---|---|
-| D1 | GPIO5 | IN1 | Left forward |
-| D2 | GPIO4 | IN2 | Left reverse |
-| D5 | GPIO14 | IN3 | Right forward |
-| D6 | GPIO12 | IN4 | Right reverse |
-| D7 | GPIO13 | ENA | Left speed PWM |
-| D8 | GPIO15 | ENB | Right speed PWM |
-| VIN | — | 5V out | Logic power |
-| GND | — | GND | Common ground |
+**Wiring in short:** batteries → L298N → 5V out → NodeMCU VIN. Control signals: D1/D2 → IN1/IN2 (left), D5/D6 → IN3/IN4 (right), D7 → ENA, D8 → ENB. Remove ENA/ENB jumpers before wiring D7/D8.
 
 ---
 
-## Project Structure
-gesture-car/
-├── esp8266/
-│   ├── car_firmware.ino       # ESP8266 WiFi + MQTT + motor control
-│   └── pin_reference.md       # NodeMCU wiring reference
-├── src/
-│   ├── config.py              # All constants
-│   ├── hand_utils.py          # MediaPipe + FastVoteBuffer
-│   ├── collect_data.py        # Webcam data collection
-│   ├── filter_images.py       # Image quality filter (one-time)
-│   ├── extract_from_images.py # Images → landmark CSV
-│   ├── train_model.py         # Train Random Forest
-│   ├── export_model.py        # Export to ONNX for browser
-│   └── app.py                 # Local Flask dev dashboard
-├── docs/
-│   ├── index.html             # Mobile control app (GitHub Pages)
-│   ├── model.onnx             # Trained model for browser
-│   ├── labels.json            # Gesture class labels
-│   ├── sw.js                  # Service worker (offline cache)
-│   └── manifest.json          # PWA manifest
-├── templates/
-│   └── index.html             # Local dev dashboard template
-├── static/
-│   ├── style.css              # Local dev dashboard styles
-│   └── dashboard.js           # Local dev dashboard JS
-├── outputs/
-│   └── confusion_matrix.png   # Model evaluation result
-├── requirements.txt
-├── .gitignore
-└── README.md
+## ML details
+
+| | |
+|---|---|
+| Model | Random Forest, 100 trees |
+| Input | 63 floats — 21 landmarks × (x,y,z), wrist-normalised |
+| Training data | ~44k samples (filtered Kaggle images + webcam) |
+| CV accuracy | 97–99% |
+| Export | ONNX opset 12 via skl2onnx, runs in browser via WASM |
+
+A CNN would be excessive here. The landmark vector is already a high-level representation — a tree-based model generalises well at this scale, gives calibrated probabilities, and runs in <1ms.
+
+<details>
+<summary>Confusion matrix</summary>
+<br/>
+<img src="outputs/confusion_matrix.png" width="480"/>
+</details>
 
 ---
 
 ## Setup
 
-### HiveMQ Cloud (one time)
+**Prerequisites:** Python 3.9+, Arduino IDE, free [HiveMQ Cloud](https://console.hivemq.cloud) account (no credit card).
 
-Sign up at console.hivemq.cloud (free, no credit card)
-Create Free Serverless Cluster
-Access Management → create credentials:
-username: gesturecar
-password: GestureCar2024!
-Note your cluster URL: xxxxxx.s1.eu.hivemq.cloud
-
-
-### Update config (replace xxxxxx with your cluster URL)
-esp8266/car_firmware.ino  → MQTT_BROKER
-docs/index.html           → BROKER_URL
-src/app.py                → MQTTSender.BROKER
-src/config.py             → MQTT_BROKER
-
-### Training pipeline
+**1. Clone and install**
 ```bash
+git clone https://github.com/yash-patil-26/Gesture_Car.git
+cd Gesture_Car
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
-
-python src/filter_images.py --dry-run   # preview
-python src/filter_images.py             # execute
-python src/extract_from_images.py       # images → CSV
-python src/collect_data.py              # webcam samples
-python src/train_model.py               # train + evaluate
-python src/export_model.py              # → docs/model.onnx
 ```
 
-### Deploy
+**2. Configure** — replace `xxxxxxxxxxxxxxxx` with your HiveMQ cluster URL in:
+- `src/config.py` → `MQTT_BROKER`
+- `esp8266/car_firmware.ino` → `MQTT_BROKER`, `WIFI_SSID`, `WIFI_PASS`
+
+**3. Run the ML pipeline**
+```bash
+python src/pipeline.py                         # full run: filter → extract → train → export
+python src/pipeline.py --stage train,export    # skip image processing if data exists
+```
+
+**4. Flash the ESP8266**
+
+Library Manager → install PubSubClient (Nick O'Leary)
+Board: NodeMCU 1.0 (ESP-12E Module)
+Upload esp8266/car_firmware.ino
+Serial Monitor @ 115200 → expect: [MQTT] ✓ Connected
+
+
+**5. Deploy**
 ```bash
 git add docs/model.onnx docs/labels.json
-git commit -m "Update model"
-git push origin main
-# GitHub Pages updates in ~2 minutes
+git commit -m "update model" && git push
+# GitHub Pages rebuilds in ~2 minutes
 ```
 
-### ESP8266
+**6. Run**
 
-Set WIFI_SSID + WIFI_PASS in car_firmware.ino
-Set MQTT_BROKER to your HiveMQ cluster URL
-Arduino IDE → Tools → NodeMCU 1.0
-Install library: PubSubClient by Nick O'Leary
-Upload
-Serial Monitor 115200 baud → should print: MQTT Connected ✓
+Power on car → open https://yash-patil-26.github.io/Gesture_Car/ on any phone
 
 
-### Laptop dev mode
+---
+
+## Development mode
+
 ```bash
 python src/app.py
-# Open http://localhost:5000
+# http://localhost:5000 — live camera feed, command log, MQTT status
 ```
 
 ---
 
-## ML Model
+## Project layout
 
-| Property | Value |
-|---|---|
-| Algorithm | Random Forest (100 trees) |
-| Input | 63 features (21 landmarks × x,y,z normalized) |
-| Classes | 5 gestures |
-| Training samples | ~44,000 |
-| CV accuracy | 97–99% |
-| Inference | <1ms Python, ~5ms ONNX in browser |
-| Format | ONNX opset 12 |
+├── docs/ # GitHub Pages — mobile control app
+│ ├── index.html
+│ ├── model.onnx
+│ └── labels.json
+├── esp8266/
+│ └── car_firmware.ino
+├── src/
+│ ├── config.py # constants + shared ML utilities
+│ ├── pipeline.py # filter → extract → train → export
+│ ├── collect_data.py # webcam data collection
+│ └── app.py # local dev dashboard (Flask)
+└── outputs/
+└── confusion_matrix.png
 
----
-
-## Architecture
-GitHub Pages (HTTPS)          HiveMQ Cloud (wss://)
-docs/index.html        →      MQTT broker
-model.onnx (cached)    →      topic: gesturecar/command
-↓
-ESP8266 (MQTT subscriber)
-↓
-L298N → 4 motors
 
 ---
 
-## Confusion Matrix
+## Challenges worth noting
 
-![Confusion Matrix](outputs/confusion_matrix.png)
+**The HTTPS/WebSocket problem.** GitHub Pages forces HTTPS. Browsers block `ws://` from HTTPS pages. The ESP8266 can't run TLS. Solution: route commands through a cloud MQTT broker — the browser uses `wss://` to the broker, the ESP8266 connects outward as a plain TCP client. No local network required at all.
+
+**Model size vs browser.** Random Forest ONNX exports can hit 20MB+. Keeping training data balanced and capping trees at 100 held it under 15MB — acceptable for a first load that caches permanently.
+
+---
+
+## Roadmap
+
+- [ ] Replace Random Forest with a quantised TFLite model for smaller binary
+- [ ] Dynamic gestures (swipe sequences) via LSTM
+- [ ] Battery level telemetry over MQTT status topic
+- [ ] OTA firmware update over MQTT
 
 ---
 
 ## License
 
-MIT
+MIT — do whatever you want with it.
+
+---
+
+<div align="center">
+<sub>Built as an end-to-end ML + embedded systems prototype · <a href="https://yash-patil-26.github.io/Gesture_Car/">Try it live</a></sub>
+</div>

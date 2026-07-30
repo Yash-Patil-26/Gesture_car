@@ -1,0 +1,4 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "C_Cpp.default.compilerPath": "c:\\Users\\Yash Patil\\Desktop\\Gesture-car\\esp8266\\car_firmware\\car_firmware.ino"
+}

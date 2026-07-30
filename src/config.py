@@ -1,17 +1,17 @@
 # ─────────────────────────────────────────────────────────────
-# Central configuration — all constants in one place.
-# Change values here only — never hardcode elsewhere.
+# Imported by: pipeline.py, collect_data.py, app.py
 # ─────────────────────────────────────────────────────────────
 
 import os
+import numpy as np
+import mediapipe as mp
+from collections import deque
 
 # ── Paths ──────────────────────────────────────────────────────
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR     = os.path.join(BASE_DIR, "data")
 MODEL_DIR    = os.path.join(BASE_DIR, "model")
 OUTPUT_DIR   = os.path.join(BASE_DIR, "outputs")
-TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
-STATIC_DIR   = os.path.join(BASE_DIR, "static")
 DOCS_DIR     = os.path.join(BASE_DIR, "docs")
 
 DATA_CSV     = os.path.join(DATA_DIR,   "gesture_data.csv")
@@ -50,8 +50,6 @@ CONFIDENCE_THRESHOLD = 0.85
 VOTE_WINDOW          = 5
 
 # ── MQTT — HiveMQ Cloud ────────────────────────────────────────
-# Used by both app.py (laptop) and ESP8266 firmware
-# Update MQTT_BROKER with your actual cluster URL
 MQTT_BROKER      = "29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud"
 MQTT_PORT_TLS    = 8883   # ESP8266 TCP + TLS
 MQTT_PORT_WSS    = 8884   # Browser WebSocket + TLS
@@ -63,3 +61,115 @@ MQTT_TOPIC_STATUS= "gesturecar/status"
 # ── Flask local dev server ─────────────────────────────────────
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000
+
+
+# ══════════════════════════════════════════════════════════════
+# SHARED ML UTILITIES  (merged from hand_utils.py)
+# Used by: pipeline.py, collect_data.py, app.py
+# ══════════════════════════════════════════════════════════════
+
+def build_hand_detector(detection_conf: float, tracking_conf: float):
+    """
+    Create and return a MediaPipe Hands detector.
+    Call once at startup — reuse across all frames.
+    Creating per-frame resets tracking state → full detection every frame.
+    """
+    return mp.solutions.hands.Hands(
+        static_image_mode        = False,
+        max_num_hands            = 1,
+        min_detection_confidence = detection_conf,
+        min_tracking_confidence  = tracking_conf,
+    )
+
+
+def extract_features(landmarks) -> np.ndarray:
+    """
+    Convert 21 MediaPipe landmarks → 63-dim normalised float32 vector.
+
+    Step 1 — Translation: subtract wrist (landmark 0).
+             After this, hand position in frame doesn't matter.
+    Step 2 — Scale: divide by max absolute value.
+             After this, hand size and camera distance don't matter.
+    Only the gesture shape remains in the vector.
+
+    Returns ndarray shape (63,) dtype float32, values in [-1, +1].
+    """
+    wx, wy, wz = landmarks[0].x, landmarks[0].y, landmarks[0].z
+    coords = []
+    for lm in landmarks:
+        coords.extend([lm.x - wx, lm.y - wy, lm.z - wz])
+
+    coords  = np.array(coords, dtype=np.float32)
+    max_val = np.max(np.abs(coords))
+
+    if max_val < 1e-6:
+        return np.zeros(63, dtype=np.float32)
+
+    return coords / max_val
+
+
+def process_frame(frame, detector):
+    """
+    Run MediaPipe on one BGR frame from OpenCV.
+    Returns (result, rgb_frame).
+    Converts BGR→RGB (MediaPipe requirement) with zero-copy flag.
+    """
+    import cv2
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    rgb.flags.writeable = False
+    result = detector.process(rgb)
+    rgb.flags.writeable = True
+    return result, rgb
+
+
+def get_landmark_list(result):
+    """
+    Extract first hand's landmark list from a MediaPipe result.
+    Returns landmark list or None — never raises on missing hand.
+    """
+    if result.multi_hand_landmarks:
+        return result.multi_hand_landmarks[0].landmark
+    return None
+
+
+class FastVoteBuffer:
+    """
+    Asymmetric vote buffer for real-time RC car control.
+
+    STOP  → fires in 1 frame  (~33ms) — safety priority.
+    MOTION → fires after 3 consecutive unanimous frames (~100ms).
+             Prevents single noisy frames from triggering movement.
+    """
+    MOTION_VOTES = 3
+    MOTION_CMDS  = {"FORWARD", "REVERSE", "LEFT", "RIGHT"}
+
+    def __init__(self, confidence_threshold: float):
+        self.buf         = deque(maxlen=self.MOTION_VOTES)
+        self.conf_thresh = confidence_threshold
+        self.last_stable = "STOP"
+
+    def update(self, label: str, confidence: float,
+               hand_present: bool) -> str:
+        if not hand_present or confidence < self.conf_thresh:
+            self.buf.clear()
+            self.last_stable = "STOP"
+            return "STOP"
+
+        cmd = label.upper()
+        if cmd == "STOP":
+            self.buf.clear()
+            self.last_stable = "STOP"
+            return "STOP"
+
+        if cmd in self.MOTION_CMDS:
+            self.buf.append(cmd)
+            if (len(self.buf) >= self.MOTION_VOTES and
+                    all(v == self.buf[0] for v in self.buf)):
+                self.last_stable = self.buf[0]
+                return self.last_stable
+
+        return self.last_stable
+
+    def force_stop(self):
+        self.buf.clear()
+        self.last_stable = "STOP"

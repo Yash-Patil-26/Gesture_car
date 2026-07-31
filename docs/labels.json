@@ -1,11 +1,5 @@
 {
-  "labels": [
-    "forward",
-    "left",
-    "reverse",
-    "right",
-    "stop"
-  ],
+  "labels": ["forward", "left", "reverse", "right", "stop"],
   "id_to_label": {
     "0": "forward",
     "1": "left",

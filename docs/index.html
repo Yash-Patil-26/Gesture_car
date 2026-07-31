@@ -410,7 +410,7 @@ const TOPIC_CMD     = 'gesturecar/command';
 const TOPIC_STATUS  = 'gesturecar/status';
 const CLIENT_ID    = 'gesture_phone_' + Math.random().toString(16).slice(2, 10);
 const CONF_MIN     = 0.85;
-const VOTES        = 3;
+const VOTES        = 2;
 
 // ════════════════════════════════════════════════════════════
 // State
@@ -681,7 +681,7 @@ document.getElementById('retry-btn').addEventListener('click', () => {
 function sendCmd(cmd) {
   const now     = Date.now();
   const changed = cmd !== lastSentCmd;
-  const beat    = now - lastSentTime > 400;
+  const beat    = now - lastSentTime > 100;
   if ((changed || beat) && mqttClient?.connected) {
     mqttClient.publish(TOPIC_CMD, cmd, { qos: 0, retain: false });
     lastSentCmd  = cmd;

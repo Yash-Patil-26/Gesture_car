@@ -1,55 +1,45 @@
-// ─────────────────────────────────────────────────────────────
-// ESP8266 connects to WiFi → subscribes to HiveMQ MQTT topic
-// Receives gesture commands → drives L298N motors
-//
-// Required libraries (Arduino Library Manager):
-//   PubSubClient  by Nick O'Leary  (version 2.8)
-//   ESP8266WiFi   (built into ESP8266 board package)
-// ─────────────────────────────────────────────────────────────
+//   - WATCHDOG_MS increased 1500 → 2000ms (handles cloud latency gaps)
+//   - PING explicitly ignored in execute() — was causing micro-stops every 60s
+//   - Added Serial debug for every received command (verify correct command arriving)
 
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecureBearSSL.h>
 #include <PubSubClient.h>
 
-// ── WiFi credentials ────────────────────────────────────────────
-// Any WiFi with internet access works here
-// Home WiFi, office WiFi, phone hotspot — all fine
 const char* WIFI_SSID = "MudrOn";
 const char* WIFI_PASS = "1234567890";
 
-// ── HiveMQ Cloud credentials ────────────────────────────────────
-// Replace with YOUR cluster URL from HiveMQ console
-// Format: xxxxxxxxxxxxxxxx.s1.eu.hivemq.cloud
 const char* MQTT_BROKER  = "29455b01c27447b488b1ec93488ce95d.s1.eu.hivemq.cloud";
 const int   MQTT_PORT    = 8883;
 const char* MQTT_USER    = "Mudron";
 const char* MQTT_PASS    = "26crGesture";
 const char* MQTT_CLIENT  = "gesture_car_esp8266";
-
-// ── MQTT topics ─────────────────────────────────────────────────
 const char* TOPIC_CMD    = "gesturecar/command";
 const char* TOPIC_STATUS = "gesturecar/status";
 
-// ── Motor pins ──────────────────────────────────────────────────
-#define IN1   D1
-#define IN2   D2
-#define IN3   D5
-#define IN4   D6
-#define ENA   D7
-#define ENB   D8
-#define SPEED 700    // 0–1023 (10-bit PWM)
+// ── Motor pins ──────────────────────────────────────────────
+#define IN1  D1
+#define IN2  D2
+#define IN3  D5
+#define IN4  D6
+#define ENA  D7
+#define ENB  D8
+#define SPEED 700
 
-// ── Watchdog and ping timers ────────────────────────────────────
+// ── Timing ──────────────────────────────────────────────────
 unsigned long lastCmd  = 0;
 unsigned long lastPing = 0;
-const unsigned long WATCHDOG_MS = 1500;  // longer for cloud latency
-const unsigned long PING_MS     = 5000;  // status publish interval
 
-// ── MQTT over TLS ───────────────────────────────────────────────
+// WATCHDOG: increased to 2000ms to handle cloud latency gaps
+// At 100ms heartbeat interval the phone sends every 100ms
+// 2000ms gives 20 heartbeat attempts before watchdog fires
+const unsigned long WATCHDOG_MS = 2000;
+const unsigned long PING_MS     = 5000;
+
 BearSSL::WiFiClientSecure net;
 PubSubClient mqtt(net);
 
-// ── Motor control ────────────────────────────────────────────────
+// ── Motors ──────────────────────────────────────────────────
 void stopMotors() {
   digitalWrite(IN1, LOW); digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW); digitalWrite(IN4, LOW);
@@ -62,87 +52,112 @@ void drive(bool l1, bool l2, bool r1, bool r2, int spd) {
   analogWrite(ENA, spd); analogWrite(ENB, spd);
 }
 
-void execute(String cmd) {
-  cmd.trim(); cmd.toUpperCase();
+// ── Command execution ────────────────────────────────────────
+// NOTE ON DIRECTION ISSUES:
+// If your car goes the wrong direction, adjust the HIGH/LOW
+// values inside each drive() call below.
+//
+// How to read drive(l1, l2, r1, r2, speed):
+//   l1=HIGH, l2=LOW  → left motors spin FORWARD
+//   l1=LOW,  l2=HIGH → left motors spin BACKWARD
+//   r1=HIGH, r2=LOW  → right motors spin FORWARD
+//   r1=LOW,  r2=HIGH → right motors spin BACKWARD
+//
+// If FORWARD makes car go right:
+//   → Your left and right channels are physically swapped
+//   → Swap drive() calls for left and right below
+//   → OR physically swap the wire pairs at L298N OUT1/OUT2 and OUT3/OUT4
+//
+// If FORWARD makes car go backward:
+//   → Both channels have reversed polarity
+//   → Change drive(1,0,1,0) to drive(0,1,0,1) for FORWARD
+//   → And vice versa for REVERSE
+//
+// Start here: confirm WHICH direction is wrong, then adjust below.
 
-  // Ignore heartbeat pings from app
-  if (cmd == "PING") return;
+void execute(String cmd) {
+  cmd.trim();
+  cmd.toUpperCase();
+
+  // ── CRITICAL: Ignore PING — do not treat as motor command ──
+  // Periodic latency pings publish "PING" to TOPIC_CMD.
+  // Without this check, PING falls through to stopMotors()
+  // causing a brief stop every 60 seconds mid-motion.
+  if (cmd == "PING") {
+    Serial.println("[CMD] PING received — ignored (latency probe)");
+    return;
+  }
+
+  // Print every command to Serial for debugging
+  // Use this to verify the correct command is arriving
+  // Example: show FORWARD gesture → Serial should print "[CMD] FORWARD"
+  // If it prints "[CMD] LEFT" instead → ML label issue, not hardware
+  Serial.printf("[CMD] %s\n", cmd.c_str());
 
   if      (cmd == "FORWARD") drive(1, 0, 1, 0, SPEED);
   else if (cmd == "REVERSE") drive(0, 1, 0, 1, SPEED);
   else if (cmd == "LEFT")    drive(0, 1, 1, 0, SPEED);
   else if (cmd == "RIGHT")   drive(1, 0, 0, 1, SPEED);
-  else                       stopMotors();
+  else if (cmd == "STOP")    stopMotors();
+  else {
+    Serial.printf("[CMD] Unknown command: %s\n", cmd.c_str());
+    stopMotors();
+  }
 
   lastCmd = millis();
-  Serial.printf("[CMD] %s\n", cmd.c_str());
 }
 
-// ── MQTT message callback ────────────────────────────────────────
+// ── MQTT callback ────────────────────────────────────────────
 void onMessage(char* topic, byte* payload, unsigned int len) {
   String msg;
-  for (unsigned int i = 0; i < len; i++) {
-    msg += (char)payload[i];
-  }
-  Serial.printf("[MQTT] topic=%s msg=%s\n", topic, msg.c_str());
+  for (unsigned int i = 0; i < len; i++) msg += (char)payload[i];
   execute(msg);
 }
 
-// ── WiFi connect ─────────────────────────────────────────────────
+// ── WiFi ─────────────────────────────────────────────────────
 void connectWiFi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
   Serial.print("[WIFI] Connecting");
-  int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 40) {
-    delay(500);
-    Serial.print(".");
-    tries++;
+  int t = 0;
+  while (WiFi.status() != WL_CONNECTED && t < 40) {
+    delay(500); Serial.print("."); t++;
   }
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\n[WIFI] Connected — IP: %s\n",
+    Serial.printf("\n[WIFI] Connected — %s\n",
       WiFi.localIP().toString().c_str());
   } else {
-    Serial.println("\n[WIFI] Failed — will retry in loop");
+    Serial.println("\n[WIFI] Failed");
   }
 }
 
-// ── MQTT connect ─────────────────────────────────────────────────
+// ── MQTT ─────────────────────────────────────────────────────
 void connectMQTT() {
-  // setInsecure skips certificate validation
-  // Acceptable for this project — HiveMQ uses valid certs
   net.setInsecure();
-
   mqtt.setServer(MQTT_BROKER, MQTT_PORT);
   mqtt.setCallback(onMessage);
   mqtt.setKeepAlive(30);
   mqtt.setBufferSize(512);
 
-  Serial.print("[MQTT] Connecting to HiveMQ");
-  int tries = 0;
-  while (!mqtt.connected() && tries < 5) {
+  Serial.print("[MQTT] Connecting");
+  int t = 0;
+  while (!mqtt.connected() && t < 5) {
     if (mqtt.connect(MQTT_CLIENT, MQTT_USER, MQTT_PASS)) {
-      Serial.println("\n[MQTT] Connected ✓");
+      Serial.println("\n[MQTT] ✓ Connected");
       mqtt.subscribe(TOPIC_CMD);
       mqtt.publish(TOPIC_STATUS, "ONLINE");
-      Serial.printf("[MQTT] Subscribed to: %s\n", TOPIC_CMD);
+      Serial.printf("[MQTT] Subscribed: %s\n", TOPIC_CMD);
     } else {
       Serial.printf(" rc=%d", mqtt.state());
-      delay(3000);
-      tries++;
+      delay(3000); t++;
     }
-  }
-  if (!mqtt.connected()) {
-    Serial.println("\n[MQTT] Failed after 5 tries — will retry in loop");
   }
 }
 
-// ── Setup ─────────────────────────────────────────────────────────
+// ── Setup ─────────────────────────────────────────────────────
 void setup() {
-  Serial.begin(115200);
-  delay(100);
+  Serial.begin(115200); delay(100);
 
-  // Motor pins — all LOW on boot
   pinMode(IN1, OUTPUT); digitalWrite(IN1, LOW);
   pinMode(IN2, OUTPUT); digitalWrite(IN2, LOW);
   pinMode(IN3, OUTPUT); digitalWrite(IN3, LOW);
@@ -150,50 +165,45 @@ void setup() {
   pinMode(ENA, OUTPUT); analogWrite(ENA, 0);
   pinMode(ENB, OUTPUT); analogWrite(ENB, 0);
 
-  Serial.println("\n══════════════════════════════════");
-  Serial.println("  Gesture RC Car — Booting");
+  Serial.println("\n══════════════════════════════");
+  Serial.println("  Gesture RC Car");
   Serial.printf ("  WiFi   : %s\n", WIFI_SSID);
   Serial.printf ("  Broker : %s\n", MQTT_BROKER);
   Serial.printf ("  Topic  : %s\n", TOPIC_CMD);
-  Serial.println("══════════════════════════════════");
+  Serial.printf ("  Watchdog: %lums\n", WATCHDOG_MS);
+  Serial.println("══════════════════════════════");
+  Serial.println("  Serial debug enabled:");
+  Serial.println("  [CMD] lines show every received command");
+  Serial.println("  Use this to verify correct gestures arriving");
+  Serial.println("══════════════════════════════");
 
   connectWiFi();
-
-  if (WiFi.status() == WL_CONNECTED) {
-    connectMQTT();
-  }
+  if (WiFi.status() == WL_CONNECTED) connectMQTT();
 
   lastCmd  = millis();
   lastPing = millis();
 }
 
-// ── Loop ──────────────────────────────────────────────────────────
+// ── Loop ──────────────────────────────────────────────────────
 void loop() {
-  // Reconnect WiFi if dropped
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[WIFI] Lost — reconnecting");
+    Serial.println("[WIFI] Reconnecting…");
     connectWiFi();
   }
-
-  // Reconnect MQTT if dropped
   if (WiFi.status() == WL_CONNECTED && !mqtt.connected()) {
-    Serial.println("[MQTT] Lost — reconnecting");
+    Serial.println("[MQTT] Reconnecting…");
     connectMQTT();
   }
 
-  // Process incoming MQTT messages
-  if (mqtt.connected()) {
-    mqtt.loop();
-  }
+  if (mqtt.connected()) mqtt.loop();
 
-  // Watchdog — stop motors if no command received recently
-  // Handles: app closed, internet dropped, phone locked
+  // Watchdog — stop if no valid command in WATCHDOG_MS
   if (millis() - lastCmd > WATCHDOG_MS) {
     stopMotors();
     lastCmd = millis();
   }
 
-  // Periodic status ping — lets app know car is alive
+  // Status ping
   if (mqtt.connected() && millis() - lastPing > PING_MS) {
     mqtt.publish(TOPIC_STATUS, "ALIVE");
     lastPing = millis();

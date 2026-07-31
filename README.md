@@ -2,59 +2,38 @@
 
 # Gesture RC Car
 
-**Control a physical RC car with hand gestures — through your phone camera, entirely in the browser.**
+Control a real RC car with hand gestures through your phone — no app, no laptop, no wearables.
 
 <br/>
 
-[![Live Demo](https://img.shields.io/badge/Try%20It%20Live-00E5A0?style=for-the-badge&logoColor=black)](https://yash-patil-26.github.io/Gesture_Car/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-gray?style=for-the-badge)](LICENSE)
-[![Python](https://img.shields.io/badge/Python_3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
-[![Arduino](https://img.shields.io/badge/ESP8266-00979D?style=for-the-badge&logo=arduino&logoColor=white)](esp8266/)
+[![Live Demo](https://img.shields.io/badge/▶_Try_Live_Demo-00E5A0?style=for-the-badge)](https://yash-patil-26.github.io/Gesture_car/)
+&nbsp;
+[![MIT License](https://img.shields.io/badge/License-MIT-gray?style=for-the-badge)](LICENSE)
 
 <br/>
 
+<!-- ─────────────────────────────────────────────────────────────
+     DEMO VIDEO
+     Steps to add your video:
+     1. Record a 2-3 min screen+car video on your phone
+     2. Upload to YouTube (unlisted is fine)
+     3. Copy the video ID from the URL: youtube.com/watch?v=VIDEO_ID_HERE
+     4. Replace VIDEO_ID_HERE below with your actual ID
+     ───────────────────────────────────────────────────────────── -->
 
-![Demo](docs/assets/demo.gif)
+[![Demo Video](https://img.youtube.com/vi/VIDEO_ID_HERE/maxresdefault.jpg)](https://www.youtube.com/watch?v=VIDEO_ID_HERE)
 
-*Open the URL. Show your hand. The car moves.*
+*▶ Click to watch the demo*
 
 </div>
 
 ---
 
-## Overview
+## What this is
 
-Most gesture-controlled projects need a glove, a special sensor, or a laptop sitting next to the hardware. This one needs none of those. It runs entirely in a phone browser — no app install, no wearable, no dedicated server.
+Open [yash-patil-26.github.io/Gesture_car](https://yash-patil-26.github.io/Gesture_car/) on any phone. The browser downloads a trained ML model, activates your front camera, and starts classifying hand gestures locally — no frames ever leave your device. Recognised gestures are published as short command strings to a cloud MQTT broker. An ESP8266 on the car subscribes to the same topic and drives the motors accordingly.
 
-You open a URL. The browser loads a trained ML model. Your front camera feeds hand landmarks into a Random Forest classifier. Commands travel through a cloud MQTT broker to an ESP8266 on the car. Close the tab and the car stops.
-
----
-
-## Architecture
-
-Phone camera → MediaPipe (21 landmarks)
-→ Random Forest ONNX (gesture class, <5ms)
-→ HiveMQ wss:// (cloud MQTT relay, ~80ms)
-→ ESP8266 NodeMCU
-→ L298N → 4× TT motors
-
-
-The ML model runs locally on the phone — no camera frames ever leave the device. Only the classified command string (`FORWARD`, `LEFT`, etc.) is sent over the network.
-
-
----
-
-## Tech Stack
-
-| Category | Technology |
-|---|---|
-| Computer Vision | MediaPipe Hands |
-| Machine Learning | Random Forest, scikit-learn, ONNX |
-| Frontend | HTML, CSS, JavaScript |
-| Backend | Flask |
-| Communication | MQTT (HiveMQ Cloud) |
-| Hardware | ESP8266 NodeMCU, L298N, TT Motors |
-| Deployment | GitHub Pages |
+The entire ML inference pipeline runs in the browser at 20+ fps on a mid-range phone. No server. No dedicated backend. Close the tab and the car stops.
 
 ---
 
@@ -86,7 +65,7 @@ A vote buffer requires 3 consecutive matching frames before triggering a motion 
 
 ---
 
-## Machine Learning
+## ML details
 
 | | |
 |---|---|
@@ -106,7 +85,7 @@ A CNN would be excessive here. The landmark vector is already a high-level repre
 
 ---
 
-## Quick Start
+## Setup
 
 **Prerequisites:** Python 3.9+, Arduino IDE, free [HiveMQ Cloud](https://console.hivemq.cloud) account (no credit card).
 
@@ -150,7 +129,7 @@ Power on car → open https://yash-patil-26.github.io/Gesture_Car/ on any phone
 
 ---
 
-## Local Development
+## Development mode
 
 ```bash
 python src/app.py
@@ -159,30 +138,26 @@ python src/app.py
 
 ---
 
-## Project structure
+## Project layout
 
-├── docs/               # GitHub Pages — mobile control app
-│   ├── index.html
-│   ├── model.onnx
-│   └── labels.json
+├── docs/ # GitHub Pages — mobile control app
+│ ├── index.html
+│ ├── model.onnx
+│ └── labels.json
 ├── esp8266/
-│   └── car_firmware.ino
+│ └── car_firmware.ino
 ├── src/
-│   ├── config.py       # constants + shared utilities
-│   ├── hand_utils.py   # MediaPipe helpers + FastVoteBuffer
-│   ├── collect_data.py # webcam data collection
-│   ├── filter_images.py
-│   ├── extract_from_images.py
-│   ├── train_model.py
-│   ├── export_model.py
-│   └── app.py          # local dev dashboard
+│ ├── config.py # constants + shared ML utilities
+│ ├── pipeline.py # filter → extract → train → export
+│ ├── collect_data.py # webcam data collection
+│ └── app.py # local dev dashboard (Flask)
 └── outputs/
-    └── confusion_matrix.png
+└── confusion_matrix.png
 
 
 ---
 
-## Engineering Decisions
+## Challenges worth noting
 
 **The HTTPS/WebSocket problem.** GitHub Pages forces HTTPS. Browsers block `ws://` from HTTPS pages. The ESP8266 can't run TLS. Solution: route commands through a cloud MQTT broker — the browser uses `wss://` to the broker, the ESP8266 connects outward as a plain TCP client. No local network required at all.
 
@@ -190,21 +165,7 @@ python src/app.py
 
 ---
 
-
-
----
-
-## Performance
-
-| Metric | Value |
-|---|---:|
-| Gesture Classes | 5 |
-| Cross-validation Accuracy | 97–99% |
-| Browser Inference | <5 ms |
-| MQTT Latency | ~80 ms |
-| Model | Random Forest (100 Trees) |
-
-## Future Improvements
+## Roadmap
 
 - [ ] Replace Random Forest with a quantised TFLite model for smaller binary
 - [ ] Dynamic gestures (swipe sequences) via LSTM

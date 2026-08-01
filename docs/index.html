@@ -415,12 +415,12 @@ const VOTES        = 2;
 // ════════════════════════════════════════════════════════════
 // State
 // ════════════════════════════════════════════════════════════
-let onnxSession, labels = [];
+let onnxSession, labels = [], gestureToCmd = {};
 let mqttClient;
 let running     = false;
 let carOnline   = false;
 let carBusy     = false;
-let voteBuf     = [], lastStable = 'STOP';
+let voteBuf = [], lastStable = 'STOP', gestureCmd = 'STOP';
 let lastSentCmd = null, lastSentTime = 0;
 let fpsCnt = 0, fpsTimer = performance.now();
 let cameraInst, handsInst;
@@ -747,7 +747,9 @@ async function classify(f) {
     if (!p) return null;
     let mi = 0, mp = 0;
     p.forEach((v, i) => { if (v > mp) { mp = v; mi = i; } });
-    return { label: labels[mi] || '?', conf: mp };
+    const gestureName = labels[mi] || '?';
+    const command     = gestureToCmd[gestureName] || 'STOP';
+    return { label: gestureName, command: command, conf: mp };
   } catch { return null; }
 }
 
@@ -799,13 +801,14 @@ async function onResults(res) {
     hand = true;
     drawLandmarks(lms);
     const f = extractFeat(lms);
-    if (f) {
-      const result = await classify(f);
-      if (result) { gesture = result.label; conf = result.conf; }
-    }
+      if (result) {
+        gesture    = result.label;    // "palm", "fist", etc — shown on UI
+        gestureCmd = result.command;  // "FORWARD", "STOP" etc — sent to car
+        conf       = result.conf;
+      }
   }
-
-  const cmd = vote(gesture, conf, hand);
+}
+const cmd = vote(gestureCmd, conf, hand);
 
   // Update gesture overlay
   gName.textContent = gesture;
@@ -833,7 +836,6 @@ async function onResults(res) {
   }
 
   if (running) sendCmd(cmd);
-}
 
 // ════════════════════════════════════════════════════════════
 // Camera — request front camera at higher resolution
@@ -910,7 +912,9 @@ async function init() {
     });
 
     loadMsg.innerHTML = 'Loading gesture labels…';
-    labels = (await (await fetch('./labels.json')).json()).labels;
+    const labelsData = (await (await fetch('./labels.json')).json());
+    labels          = labelsData.labels;
+    gestureToCmd    = labelsData.gesture_to_cmd;
     console.log('[ML] Classes:', labels);
 
     // Hide load screen

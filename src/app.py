@@ -17,7 +17,7 @@ from config import (
     MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE,
     CONFIDENCE_THRESHOLD,
     FLASK_HOST, FLASK_PORT,
-    GESTURES,
+    GESTURES, GESTURE_TO_CMD,
     MQTT_BROKER, MQTT_PORT_TLS,
     MQTT_USERNAME, MQTT_PASSWORD,
     MQTT_TOPIC_CMD, MQTT_TOPIC_STATUS,
@@ -25,6 +25,10 @@ from config import (
     build_hand_detector, process_frame,
     get_landmark_list, extract_features, FastVoteBuffer,
 )
+
+import mediapipe as mp
+mp_draw_utils = mp.solutions.drawing_utils  # type: ignore[attr-defined]
+mp_hands_mod  = mp.solutions.hands          # type: ignore[attr-defined]
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -609,9 +613,10 @@ def load_model():
     return model, encoder
 
 
-# ── Frame annotation ──────────────────────────────────────────
-mp_draw      = mp.solutions.drawing_utils
-mp_hands_mod = mp.solutions.hands
+# ── Frame annotation ────────────────────────────────────────── 
+
+mp_draw      = mp_draw_utils
+mp_hands_mod = mp_hands_mod
 
 COMMAND_COLORS = {
     "FORWARD": (0,  220, 100),
@@ -704,12 +709,15 @@ def inference_thread(model, encoder):
             proba      = model.predict_proba(features)[0]
             idx        = int(np.argmax(proba))
             confidence = float(proba[idx])
-            gesture    = encoder.classes_[idx]
+            gesture_label = encoder.classes_[idx]   # natural name: "palm", "fist"
+            gesture       = gesture_label           # what UI shows
+            command_str   = GESTURE_TO_CMD.get(gesture_label, "STOP")  # what car receives
         else:
             gesture    = "No hand"
             confidence = 0.0
 
-        command = vote_buf.update(gesture, confidence, lms is not None)
+        # Pass command string to vote buffer, not gesture label
+        command = vote_buf.update(command_str, confidence, lms is not None)
         sender.send(command)
 
         # Update session stats

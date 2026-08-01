@@ -1,11 +1,15 @@
 # ─────────────────────────────────────────────────────────────
+# Central configuration AND shared ML utilities.
 # Imported by: pipeline.py, collect_data.py, app.py
 # ─────────────────────────────────────────────────────────────
 
 import os
 import numpy as np
-import mediapipe as mp
 from collections import deque
+
+import mediapipe as mp
+_mp_hands   = mp.solutions.hands          # type: ignore[attr-defined]
+_mp_drawing = mp.solutions.drawing_utils  # type: ignore[attr-defined]
 
 # ── Paths ──────────────────────────────────────────────────────
 BASE_DIR     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,8 +24,16 @@ ENCODER_FILE = os.path.join(MODEL_DIR,  "label_encoder.pkl")
 CM_IMAGE     = os.path.join(OUTPUT_DIR, "confusion_matrix.png")
 
 # ── Gestures ───────────────────────────────────────────────────
-GESTURES            = ["forward", "reverse", "left", "right", "stop"]
-SAMPLES_PER_GESTURE = 100
+GESTURES            = ["palm", "dislike", "rock", "ok", "fist"]
+SAMPLES_PER_GESTURE = 5
+
+GESTURE_TO_CMD = {
+    "palm":        "FORWARD",
+    "dislike":     "REVERSE",
+    "rock":  "LEFT",
+    "ok": "RIGHT",
+    "fist":        "STOP",
+}
 
 # ── MediaPipe ──────────────────────────────────────────────────
 NUM_LANDMARKS           = 21
@@ -58,23 +70,21 @@ MQTT_PASSWORD    = "26crGesture"
 MQTT_TOPIC_CMD   = "gesturecar/command"
 MQTT_TOPIC_STATUS= "gesturecar/status"
 
-# ── Flask local dev server ─────────────────────────────────────
+# ── Flask ──────────────────────────────────────────────────────
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000
 
 
 # ══════════════════════════════════════════════════════════════
-# SHARED ML UTILITIES  (merged from hand_utils.py)
-# Used by: pipeline.py, collect_data.py, app.py
+# SHARED ML UTILITIES
 # ══════════════════════════════════════════════════════════════
 
 def build_hand_detector(detection_conf: float, tracking_conf: float):
     """
-    Create and return a MediaPipe Hands detector.
-    Call once at startup — reuse across all frames.
-    Creating per-frame resets tracking state → full detection every frame.
+    Create MediaPipe Hands detector.
+    Call once — reuse across all frames.
     """
-    return mp.solutions.hands.Hands(
+    return _mp_hands.Hands(           # type: ignore[attr-defined]
         static_image_mode        = False,
         max_num_hands            = 1,
         min_detection_confidence = detection_conf,
@@ -84,15 +94,10 @@ def build_hand_detector(detection_conf: float, tracking_conf: float):
 
 def extract_features(landmarks) -> np.ndarray:
     """
-    Convert 21 MediaPipe landmarks → 63-dim normalised float32 vector.
-
-    Step 1 — Translation: subtract wrist (landmark 0).
-             After this, hand position in frame doesn't matter.
-    Step 2 — Scale: divide by max absolute value.
-             After this, hand size and camera distance don't matter.
-    Only the gesture shape remains in the vector.
-
-    Returns ndarray shape (63,) dtype float32, values in [-1, +1].
+    21 MediaPipe landmarks → 63-dim normalised float32 vector.
+    Step 1: subtract wrist → position invariant.
+    Step 2: divide by max abs → scale invariant.
+    Returns values in [-1, +1].
     """
     wx, wy, wz = landmarks[0].x, landmarks[0].y, landmarks[0].z
     coords = []
@@ -110,9 +115,8 @@ def extract_features(landmarks) -> np.ndarray:
 
 def process_frame(frame, detector):
     """
-    Run MediaPipe on one BGR frame from OpenCV.
+    Run MediaPipe on one BGR frame.
     Returns (result, rgb_frame).
-    Converts BGR→RGB (MediaPipe requirement) with zero-copy flag.
     """
     import cv2
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -124,23 +128,27 @@ def process_frame(frame, detector):
 
 def get_landmark_list(result):
     """
-    Extract first hand's landmark list from a MediaPipe result.
-    Returns landmark list or None — never raises on missing hand.
+    Extract first hand landmarks from MediaPipe result.
+    Returns landmark list or None.
     """
     if result.multi_hand_landmarks:
         return result.multi_hand_landmarks[0].landmark
     return None
 
 
+# Expose drawing utils for files that need it
+# Import via: from config import mp_drawing_utils
+mp_drawing_utils = _mp_drawing  # type: ignore[attr-defined]
+mp_hands_module  = _mp_hands    # type: ignore[attr-defined]
+
+
 class FastVoteBuffer:
     """
-    Asymmetric vote buffer for real-time RC car control.
-
-    STOP  → fires in 1 frame  (~33ms) — safety priority.
-    MOTION → fires after 3 consecutive unanimous frames (~100ms).
-             Prevents single noisy frames from triggering movement.
+    Asymmetric vote buffer.
+    STOP  → 1 frame  (~33ms)  — safety first.
+    MOTION → 2 frames (~66ms) — reduced from 3 for faster response.
     """
-    MOTION_VOTES = 3
+    MOTION_VOTES = 2   # reduced from 3 for faster command response
     MOTION_CMDS  = {"FORWARD", "REVERSE", "LEFT", "RIGHT"}
 
     def __init__(self, confidence_threshold: float):

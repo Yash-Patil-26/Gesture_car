@@ -8,7 +8,7 @@ dist/ build/
 venv/ env/ .venv/
 
 # Large data — never commit
-external_images/
+input_data/
 data/gesture_data.csv
 
 # Trained pkl — regenerable

@@ -1,26 +1,36 @@
 # ─────────────────────────────────────────────────────────────
-# Interactive webcam data collection tool.
-# Guides through recording N samples per gesture.
-# Enforces minimum hold time before recording starts.
+# Interactive webcam data collection.
+# Collects hand gesture samples from your webcam and appends
+# them to data/gesture_data.csv.
+#
+# Run whenever you want to add more webcam samples:
+#   python src/collect_data.py
+#
+# After collecting, retrain:
+#   python src/pipeline.py --stage train,export
 # ─────────────────────────────────────────────────────────────
 
-import cv2, csv, os, sys, time
+import cv2
+import csv
+import os
+import sys
+import time
+
 import mediapipe as mp
+mp_draw      = mp.solutions.drawing_utils  # type: ignore[attr-defined]
+mp_hands_mod = mp.solutions.hands          # type: ignore[attr-defined]
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import (
-    GESTURES, SAMPLES_PER_GESTURE, FEATURE_DIM,
+    GESTURES, FEATURE_DIM,
     DATA_CSV, DATA_DIR,
     CAM_INDEX, CAM_WIDTH, CAM_HEIGHT,
     MP_DETECTION_CONFIDENCE, MP_TRACKING_CONFIDENCE,
-    # Utilities now live in config.py
     build_hand_detector, process_frame,
     get_landmark_list, extract_features,
 )
 
-mp_draw      = mp.solutions.drawing_utils
-mp_hands_mod = mp.solutions.hands
 
 PRE_RECORD_HOLD_SEC = 3.0   # stable hold required before recording
 MIN_RECORD_SEC      = 2.0   # minimum recording duration
@@ -303,7 +313,9 @@ def main():
             writer = csv.writer(f)
             for i, gesture in enumerate(selected_gestures):
                 print(f"\n{'─'*50}")
-                print(f"  Gesture {i+1}/{len(selected_gestures)}: {gesture.upper()}")
+                from config import GESTURE_TO_CMD
+                cmd = GESTURE_TO_CMD.get(gesture, gesture.upper())
+                print(f"  Gesture {i+1}/{len(selected_gestures)}: {gesture.upper()} → command: {cmd}")
                 print(f"{'─'*50}")
 
                 if not phase_ready(gesture, cap, detector):

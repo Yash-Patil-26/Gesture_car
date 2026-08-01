@@ -797,7 +797,7 @@ async function onResults(res) {
   let gesture    = 'No hand';
   let conf       = 0;
   let hand       = false;
-  let gestureCmd = 'STOP';
+  gestureCmd = 'STOP';
 
   if (res.multiHandLandmarks?.length > 0) {
     const lms = res.multiHandLandmarks[0];
@@ -842,6 +842,7 @@ async function onResults(res) {
   }
 
   if (running) sendCmd(cmd);
+}
 
 // ════════════════════════════════════════════════════════════
 // Camera — request front camera at higher resolution

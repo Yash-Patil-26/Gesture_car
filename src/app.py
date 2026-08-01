@@ -828,6 +828,10 @@ def status():
 def ping():
     return jsonify({"ok": True, "time": time.strftime("%H:%M:%S")})
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 
 # ── SocketIO events ───────────────────────────────────────────
 @socketio.on('connect')

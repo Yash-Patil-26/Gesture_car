@@ -389,7 +389,7 @@ def stage_export():
             "labels":      classes,
             "id_to_label": {str(i): c for i, c in enumerate(classes)},
             # Command mapping embedded — web app uses this directly
-            "GESTURE_TO_CMD": {c: GESTURE_TO_CMD.get(c, "STOP")
+            "gesture_to_cmd": {c: GESTURE_TO_CMD.get(c, "STOP")
                            for c in classes},
         }, f, indent=2)
 

@@ -1,13 +1,6 @@
 # ─────────────────────────────────────────────────────────────
 # Interactive webcam data collection.
-# Collects hand gesture samples from your webcam and appends
-# them to data/gesture_data.csv.
-#
-# Run whenever you want to add more webcam samples:
-#   python src/collect_data.py
-#
-# After collecting, retrain:
-#   python src/pipeline.py --stage train,export
+# appends to data/gesture_data.csv.
 # ─────────────────────────────────────────────────────────────
 
 import cv2
@@ -45,22 +38,31 @@ STYLE_CONN  = mp_draw.DrawingSpec(
 
 def ask_sample_count() -> int:
     print("\n" + "─" * 50)
-    print("  Samples per gesture?")
-    print("    100 — quick test")
-    print("    200 — good balance (default)")
-    print("    300 — better robustness")
+    print("  How many people will record gestures?")
+    print("  Each person records 5 samples per gesture.")
+    print("  Total = people × 5")
     print("─" * 50)
     while True:
-        raw = input("  Enter count [default 200]: ").strip()
+        raw = input("  Enter number of people [default 1]: ").strip()
         if raw == "":
-            return 200
-        try:
-            n = int(raw)
-            if 50 <= n <= 1000:
-                return n
-            print("  Enter a number between 50 and 1000")
-        except ValueError:
-            print("  Enter a whole number")
+            people = 1
+        else:
+            try:
+                people = int(raw)
+                if people < 1 or people > 100:
+                    print("  Enter a number between 1 and 100")
+                    continue
+            except ValueError:
+                print("  Enter a whole number")
+                continue
+
+        samples = people * 5
+        print(f"\n  {people} person(s) × 5 samples = {samples} samples per gesture")
+        print(f"  Total dataset addition: {samples * len(GESTURES)} rows")
+        confirm = input("  Continue? [Y/n]: ").strip().lower()
+        if confirm in ('', 'y', 'yes'):
+            return samples
+        print("  Enter number of people again.")
 
 
 def ask_gesture_selection() -> list:
@@ -338,7 +340,7 @@ def main():
         detector.close()
 
     show_summary(gesture_counts)
-    print("\n  Next step: python src/train_model.py")
+    print("\n  Next step: python src/pipeline.py --stage train,export")
 
 
 if __name__ == "__main__":

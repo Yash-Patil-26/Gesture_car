@@ -26,7 +26,6 @@ from config import (
     get_landmark_list, extract_features, FastVoteBuffer,
 )
 
-import mediapipe as mp
 mp_draw_utils = mp.solutions.drawing_utils  # type: ignore[attr-defined]
 mp_hands_mod  = mp.solutions.hands          # type: ignore[attr-defined]
 
@@ -491,7 +490,7 @@ state = {
     "car_connected": False,
     "cam_connected": False,
     "fps":           0.0,
-    "session_stats": {g: 0 for g in GESTURES},
+    "session_stats": {"forward": 0, "reverse": 0, "left": 0, "right": 0, "stop": 0},
     "last_commands": [],
 }
 
@@ -616,7 +615,6 @@ def load_model():
 # ── Frame annotation ────────────────────────────────────────── 
 
 mp_draw      = mp_draw_utils
-mp_hands_mod = mp_hands_mod
 
 COMMAND_COLORS = {
     "FORWARD": (0,  220, 100),
@@ -722,8 +720,9 @@ def inference_thread(model, encoder):
         sender.send(command)
 
         # Update session stats
-        if command in state["session_stats"]:
-            state["session_stats"][command] += 1
+        cmd_key = command.lower()
+        if cmd_key in state["session_stats"]:
+            state["session_stats"][cmd_key] += 1
 
         # Rolling command log
         log = state["last_commands"]

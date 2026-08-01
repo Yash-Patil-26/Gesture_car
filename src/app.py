@@ -709,14 +709,15 @@ def inference_thread(model, encoder):
             proba      = model.predict_proba(features)[0]
             idx        = int(np.argmax(proba))
             confidence = float(proba[idx])
-            gesture_label = encoder.classes_[idx]   # natural name: "palm", "fist"
-            gesture       = gesture_label           # what UI shows
-            command_str   = GESTURE_TO_CMD.get(gesture_label, "STOP")  # what car receives
+            gesture_label = encoder.classes_[idx]
+            gesture       = gesture_label
+            confidence    = float(proba[idx])
+            command_str   = GESTURE_TO_CMD.get(gesture_label, "STOP")
         else:
-            gesture    = "No hand"
-            confidence = 0.0
+            gesture     = "No hand"
+            confidence  = 0.0
+            command_str = "STOP"    # ← always defined before vote_buf call
 
-        # Pass command string to vote buffer, not gesture label
         command = vote_buf.update(command_str, confidence, lms is not None)
         sender.send(command)
 

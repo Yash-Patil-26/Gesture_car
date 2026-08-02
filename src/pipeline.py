@@ -363,13 +363,15 @@ def stage_export():
     onnx_path   = os.path.join(DOCS_DIR, "model.onnx")
     labels_path = os.path.join(DOCS_DIR, "labels.json")
 
-    # ── FIX: SerializeToString bug ──────────────────────────────
-    # Newer skl2onnx returns a tuple (ModelProto, Topology).
-    # We need only the ModelProto — extract index [0] if tuple.
+
+    from skl2onnx.common.utils import get_column_indices
+    options = {id(model): {'zipmap': False}}  # converts output_probability from map to plain tensor
+
     result = convert_sklearn(
         model,
         initial_types = [('float_input', FloatTensorType([None, 63]))],
         target_opset  = 12,
+        options       = options,
     )
 
     # Handle both old (returns ModelProto) and new (returns tuple) skl2onnx

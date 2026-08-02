@@ -740,38 +740,15 @@ function extractFeat(lms) {
 async function classify(f) {
   if (!onnxSession) return null;
   try {
-    const tensor  = new ort.Tensor('float32', f, [1, 63]);
+    const tensor = new ort.Tensor('float32', f, [1, 63]);
+    const result = await onnxSession.run({ float_input: tensor });
 
-    // Request ONLY output_probability — output_label is a sequence
-    // type that onnxruntime-web cannot read and crashes the call
-    const result  = await onnxSession.run(
-      { float_input: tensor },
-      { outputNames: ['output_probability'] }
-    );
-
-    // output_probability is a map — .data contains the probabilities
-    const p = result['output_probability']?.data
-           || result[Object.keys(result)
-                .find(k => k.toLowerCase().includes('prob'))]?.data;
-
-    if (!p) {
-      console.warn('[CLASSIFY] No probability data in result:', Object.keys(result));
-      return null;
-    }
+    // With zipmap=False, output_probability is now a plain float32 tensor
+    const p = result['output_probability']?.data;
+    if (!p) return null;
 
     let mi = 0, mp = 0;
-    // p may be a plain object {0: val, 1: val...} or typed array
-    // handle both
-    if (typeof p[Symbol.iterator] === 'function') {
-      // typed array or array
-      Array.from(p).forEach((v, i) => { if (v > mp) { mp = v; mi = i; } });
-    } else {
-      // map object {0: val, 1: val, ...}
-      Object.entries(p).forEach(([k, v]) => {
-        const val = Number(v);
-        if (val > mp) { mp = val; mi = Number(k); }
-      });
-    }
+    p.forEach((v, i) => { if (v > mp) { mp = v; mi = i; } });
 
     const gestureName = labels[mi];
     if (!gestureName) return null;

@@ -10,6 +10,7 @@ seaborn==0.13.2
 # Model export
 skl2onnx==1.17.0
 onnx==1.16.0
+onnxruntime==1.18.1
 
 # Local web server
 flask==3.0.3

@@ -747,8 +747,17 @@ async function classify(f) {
     if (!p) return null;
     let mi = 0, mp = 0;
     p.forEach((v, i) => { if (v > mp) { mp = v; mi = i; } });
-    const gestureName = labels[mi] || '?';
-    const command     = gestureToCmd[gestureName] || 'STOP';
+    const gestureName = labels[mi];
+    if (!gestureName) {
+      console.warn('[CLASSIFY] No label for index', mi, '— labels array:', labels);
+      return null;
+    }
+    const command = gestureToCmd[gestureName];
+    if (!command) {
+      console.warn('[CLASSIFY] No command for gesture', gestureName, '— map:', gestureToCmd);
+      return null;
+    }
+    console.debug('[CLASSIFY]', gestureName, '→', command, 'conf:', mp.toFixed(3));
     return { label: gestureName, command: command, conf: mp };
   } catch { return null; }
 }
@@ -919,10 +928,18 @@ async function init() {
     });
 
     loadMsg.innerHTML = 'Loading gesture labels…';
-    const labelsData = (await (await fetch('./labels.json')).json());
-    labels          = labelsData.labels;
-    gestureToCmd    = labelsData.gesture_to_cmd;
+    const labelsData = await (await fetch('./labels.json')).json();
+    labels       = labelsData.labels       || [];
+    gestureToCmd = labelsData.gesture_to_cmd || {};
+
+    if (!Array.isArray(labels) || labels.length === 0) {
+      throw new Error('labels.json loaded but labels array is empty. Check the file on GitHub Pages.');
+    }
+    if (Object.keys(gestureToCmd).length === 0) {
+      throw new Error('labels.json loaded but gesture_to_cmd mapping is empty.');
+    }
     console.log('[ML] Classes:', labels);
+    console.log('[ML] Command map:', gestureToCmd);
 
     // Hide load screen
     document.getElementById('load-screen').classList.add('gone');

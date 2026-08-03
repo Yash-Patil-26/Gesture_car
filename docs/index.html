@@ -743,8 +743,7 @@ async function classify(f) {
     const tensor = new ort.Tensor('float32', f, [1, 63]);
     const result = await onnxSession.run({ float_input: tensor });
 
-    // With zipmap=False, output_probability is now a plain float32 tensor
-    const p = result['output_probability']?.data;
+    const p = result['probabilities']?.data;
     if (!p) return null;
 
     let mi = 0, mp = 0;

@@ -40,7 +40,7 @@ from config import (
 # STAGE 1 — FILTER
 # ═══════════════════════════════════════════════════════════════
 
-KEEP_PER_GESTURE = 5000
+KEEP_PER_GESTURE = 2000
 MIN_DETECT_CONF  = 0.5
 SUPPORTED_EXT    = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
 W_AREA, W_CONF, W_SPREAD, W_CENTER = 0.35, 0.30, 0.20, 0.15
@@ -363,9 +363,8 @@ def stage_export():
     onnx_path   = os.path.join(DOCS_DIR, "model.onnx")
     labels_path = os.path.join(DOCS_DIR, "labels.json")
 
-
     from skl2onnx.common.utils import get_column_indices
-    options = {id(model): {'zipmap': False}}  # converts output_probability from map to plain tensor
+    options = {id(model): {'zipmap': False}}
 
     result = convert_sklearn(
         model,

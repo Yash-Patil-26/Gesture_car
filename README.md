@@ -1,521 +1,156 @@
-# Gesture Car 🚗✋
+# 🤖 Gesture Car
 
-### Browser-Based Hand Gesture Control for an IoT Car
+### Browser-based hand gesture control for a 4-wheel robotic car.
 
-Control a 4-wheel robotic car using hand gestures captured directly from a phone camera.
+**📱 Phone camera → MediaPipe → ONNX Random Forest → MQTT → ESP8266 → 🚗 Motors**
 
-The project combines **MediaPipe hand tracking**, a lightweight **Random Forest classifier**, **ONNX Runtime Web**, **MQTT**, and an **ESP8266-based motor controller** into a browser-to-hardware control pipeline.
+[🌐 Live Demo](https://github.com/Yash-Patil-26/Gesture_car/issues/1#issue-5099027166)
 
-> **Open the web interface → show your hand → control the car.**
-
----
-
-## 🎥 Demo
-
-**Live controller:**
-https://yash-patil-26.github.io/Gesture_car/
-
-The controller is designed to run in a modern mobile browser. Gesture recognition happens locally in the browser, while MQTT is used to relay movement commands to the car.
-
-### Supported gestures
-
-|   Gesture  |   Command   | Description                      |
-| :--------: | :---------: | -------------------------------- |
-|   ✋ Palm   | **FORWARD** | Open hand facing the camera      |
-|   ✊ Fist   |   **STOP**  | Fingers closed                   |
-|   🤘 Rock  |   **LEFT**  | Index and pinky extended         |
-|    👌 OK   |  **RIGHT**  | Thumb and index forming a circle |
-| 👎 Dislike | **REVERSE** | Thumb pointing downward          |
-
-A short frame-voting mechanism is used for movement gestures to reduce accidental commands during transitions. **STOP** is handled immediately.
+Open the demo on a phone, allow camera access, and control the car using hand gestures. Gesture inference runs locally in the browser, so camera frames are not sent to the application server.
 
 ---
 
-## ✨ Key Features
+## 🎮 Gestures
 
-* 📱 **Browser-based control**
-  No dedicated mobile application is required for the controller.
+|     Gesture    |   Command   |
+| :------------: | :---------: |
+|     ✋ Palm     | **FORWARD** |
+|     ✊ Fist     |   **STOP**  |
+|     🤘 Rock    |   **LEFT**  |
+|      👌 OK     |  **RIGHT**  |
+| 👎 Thumbs Down | **REVERSE** |
 
-* 🖐️ **Real-time hand gesture recognition**
-  MediaPipe extracts 21 hand landmarks from the camera stream.
-
-* 🧠 **Lightweight machine-learning model**
-  A Random Forest classifies the landmark features into five gestures.
-
-* 🌐 **ONNX browser inference**
-  The trained model is exported to ONNX and executed using ONNX Runtime Web.
-
-* 🔒 **Local gesture inference**
-  Camera frames are processed in the browser. The application sends movement commands rather than camera frames to the MQTT layer.
-
-* 📡 **MQTT communication**
-  Commands are transmitted through HiveMQ between the browser and ESP8266.
-
-* ⚡ **Hardware control**
-  ESP8266 receives commands and controls four TT motors through an L298N driver.
-
-* 🛑 **Command watchdog**
-  The car stops if communication with the controller is lost for longer than the configured timeout.
-
-* 💻 **Local development dashboard**
-  A Flask-based development interface is included for testing the gesture pipeline and MQTT communication.
+Movement commands require **2 consecutive matching frames** before triggering. **STOP** is handled immediately.
 
 ---
 
-# 🏗️ System Architecture
+## 🏗️ Architecture
 
 ```text
-                         TRAINING PIPELINE
-┌─────────────────────────────────────────────────────────┐
-│                                                         │
-│  Gesture Data                                           │
-│       │                                                 │
-│       ▼                                                 │
-│  Filtering → Landmark Extraction → Feature Preparation  │
-│       │                                                 │
-│       ▼                                                 │
-│  Random Forest Training                                 │
-│       │                                                 │
-│       ▼                                                 │
-│  ONNX Export                                             │
-│       │                                                 │
-└───────┼─────────────────────────────────────────────────┘
-        │
-        │ model.onnx + labels.json
-        ▼
-┌─────────────────────────────────────────────────────────┐
-│                    MOBILE BROWSER                       │
-│                                                         │
-│  Phone Camera                                           │
-│       │                                                 │
-│       ▼                                                 │
-│  MediaPipe Hand Tracking                                │
-│       │                                                 │
-│       ▼                                                 │
-│  21 Hand Landmarks                                      │
-│       │                                                 │
-│       ▼                                                 │
-│  ONNX Runtime Web                                       │
-│       │                                                 │
-│       ▼                                                 │
-│  Gesture → Command                                      │
-│       │                                                 │
-│       ▼                                                 │
-│  MQTT over Secure WebSocket                             │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         │ MQTT
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│                    MQTT BROKER                          │
-│                       HiveMQ                             │
-└────────────────────────┬────────────────────────────────┘
-                         │
-                         │ MQTT / TCP
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│                  ESP8266 NODEMCU                        │
-│                                                         │
-│  Wi-Fi → MQTT Subscriber → Command Handler → Watchdog  │
-│                                      │                  │
-│                                      ▼                  │
-│                              L298N Motor Driver         │
-│                                      │                  │
-│                                      ▼                  │
-│                              4 × TT Motors              │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│                    MOBILE BROWSER                    │
+│                                                      │
+│  📷 Camera → MediaPipe → 21 Landmarks → ONNX Model │
+│                                      │               │
+│                                      ▼               │
+│                              Gesture → Command       │
+└──────────────────────────────┬───────────────────────┘
+                               │
+                         MQTT over WSS
+                               │
+                               ▼
+                       ┌───────────────┐
+                       │    HiveMQ     │
+                       └───────┬───────┘
+                               │ MQTT
+                               ▼
+┌──────────────────────────────────────────────────────┐
+│                      ESP8266                         │
+│                MQTT → Watchdog → L298N               │
+│                              │                       │
+│                       4 × TT Motors 🚗               │
+└──────────────────────────────────────────────────────┘
 ```
 
-### Why MQTT?
+### Why this design?
 
-The browser controller runs in a secure HTTPS context, so communication with an external service needs to use a compatible secure transport. The browser connects to the MQTT broker using **WebSockets over TLS**, while the ESP8266 communicates with the broker using MQTT.
+**Local ML:** MediaPipe extracts hand landmarks in the browser, and ONNX Runtime Web performs classification locally.
 
-This keeps the communication layer independent from the physical motor-control hardware.
+**MQTT:** Secure WebSocket MQTT connects the HTTPS browser to the broker, while the ESP8266 uses MQTT directly.
+
+**Watchdog:** If commands stop arriving for the configured timeout, the ESP8266 stops the motors.
 
 ---
 
-# 🧠 Machine Learning Pipeline
+## 🧠 ML Model
 
-The project uses hand landmarks rather than raw camera images as the classifier input.
-
-### Feature representation
-
-MediaPipe provides:
-
-* **21 hand landmarks**
-* `x`, `y`, and `z` coordinates for each landmark
-* **63 numerical features** in total
-
-Before classification, the landmarks are normalized relative to the wrist and hand scale.
+The model classifies **21 hand landmarks × (x, y, z) = 63 features** rather than raw camera frames.
 
 ```text
-Camera Frame
-     │
-     ▼
+Camera
+  ↓
 MediaPipe
-     │
-     ▼
+  ↓
 21 Hand Landmarks
-     │
-     ▼
-Normalization
-     │
-     ▼
-63-Dimensional Feature Vector
-     │
-     ▼
+  ↓
+Wrist + Scale Normalization
+  ↓
+63 Features
+  ↓
 Random Forest
-     │
-     ▼
-Gesture Class + Confidence
-     │
-     ▼
-Movement Command
+  ↓
+ONNX
+  ↓
+Browser Inference
 ```
 
-### Model
+| Property         | Value                  |
+| ---------------- | ---------------------- |
+| Algorithm        | Random Forest          |
+| Trees            | 100                    |
+| Input            | 63 normalized features |
+| Classes          | 5                      |
+| Training samples | ~25,000                |
+| Cross-validation | ~97–99%                |
+| Export           | ONNX opset 12          |
+| Browser runtime  | ONNX Runtime Web       |
 
-| Property        | Value                           |
-| --------------- | ------------------------------- |
-| Algorithm       | Random Forest                   |
-| Trees           | 100                             |
-| Input           | 63 normalized landmark features |
-| Classes         | 5                               |
-| Output          | Gesture class + probabilities   |
-| Training data   | ~25,000 samples                 |
-| Export format   | ONNX                            |
-| ONNX opset      | 12                              |
-| Browser runtime | ONNX Runtime Web                |
+`zipmap=False` is used during export so class probabilities are available directly as a tensor.
 
-The model is intentionally lightweight because the input is already a structured representation of the hand rather than raw image pixels.
+> Accuracy is based on the collected dataset and cross-validation procedure; real-world performance can vary across users, cameras and lighting.
 
 ---
 
-# 🧪 Training Workflow
+## 🚗 Hardware
 
-Training is performed offline. The resulting ONNX model is then deployed with the web application.
-
-```text
-Collect Gesture Samples
-          ↓
-Filter / Validate Data
-          ↓
-Extract Hand Landmarks
-          ↓
-Normalize Features
-          ↓
-Train Random Forest
-          ↓
-Evaluate Model
-          ↓
-Export to ONNX
-          ↓
-Deploy model.onnx
-```
-
-### Data collection
-
-```bash
-python src/collect_data.py
-```
-
-The collection utility uses a webcam to capture samples for the supported gesture classes.
-
-### Training and export
-
-```bash
-python src/pipeline.py --stage train,export
-```
-
-The generated model can then be placed in:
-
-```text
-docs/model.onnx
-```
-
-along with:
-
-```text
-docs/labels.json
-```
-
----
-
-# 🔌 Hardware
-
-| Component           | Role                                        |
-| ------------------- | ------------------------------------------- |
-| **ESP8266 NodeMCU** | Wi-Fi, MQTT communication and motor control |
-| **L298N**           | Dual H-bridge motor driver                  |
-| **4 × TT Motors**   | Differential-drive movement                 |
-| **2 × 18650 cells** | Main power source                           |
-| **Acrylic chassis** | Mechanical structure                        |
-| **SPST switch**     | Main power control                          |
+| Component       | Role                        |
+| --------------- | --------------------------- |
+| ESP8266 NodeMCU | Wi-Fi, MQTT & motor control |
+| L298N           | H-bridge motor driver       |
+| 4 × TT Motors   | Differential drive          |
+| 2 × 18650       | Battery                     |
+| Acrylic chassis | Robot platform              |
+| SPST switch     | Main power                  |
 
 ### Motor control
 
-The ESP8266 translates high-level commands into motor directions.
-
 ```text
-FORWARD  → Left + Right motors forward
-REVERSE  → Left + Right motors reverse
-LEFT     → Differential steering
-RIGHT    → Differential steering
-STOP     → All motors stopped
+ESP8266
+   │
+   ▼
+L298N
+ ┌─┴─┐
+ ▼   ▼
+Left Right
+Motors Motors
 ```
 
-### Example GPIO mapping
-
-| ESP8266     | L298N | Function              |
-| ----------- | ----- | --------------------- |
-| D1 / GPIO5  | IN1   | Left motor direction  |
-| D2 / GPIO4  | IN2   | Left motor direction  |
-| D5 / GPIO14 | IN3   | Right motor direction |
-| D6 / GPIO12 | IN4   | Right motor direction |
-| D7 / GPIO13 | ENA   | Left motor PWM        |
-| D8 / GPIO15 | ENB   | Right motor PWM       |
-
-> **Hardware note:** Motor-driver wiring and power connections should be verified against the specific L298N board and motor configuration being used. Do not power motors directly from the ESP8266.
+> ⚠️ Remove the L298N ENA/ENB jumpers when using PWM control through D7/D8.
 
 ---
 
-# 🔄 Safety & Connection Handling
-
-The controller includes basic communication safeguards.
-
-### Command watchdog
-
-The ESP8266 tracks the time since the last valid command.
-
-```text
-Command received
-      │
-      ▼
-Reset watchdog
-      │
-      ▼
-Drive motors
-      │
-      └──── No command within timeout
-                    │
-                    ▼
-                  STOP
-```
-
-This prevents the car from continuing to drive when the controller loses communication.
-
-### Controller states
-
-| State             | Meaning                                        |
-| ----------------- | ---------------------------------------------- |
-| 🟡 Connecting     | Attempting to connect to the MQTT broker       |
-| 🟡 Device offline | Broker is reachable but the car is unavailable |
-| 🟢 Connected      | Controller and car are communicating           |
-| 🔴 Busy           | Another controller is already using the device |
-
----
-
-# 🚀 Getting Started
-
-## Requirements
-
-### Software
-
-* Python 3.x
-* Git
-* Arduino IDE
-* ESP8266 board support
-* A modern browser with camera access
-
-### Python dependencies
-
-Install the project dependencies with:
-
-```bash
-pip install -r requirements.txt
-```
-
-### Hardware
-
-* ESP8266 NodeMCU
-* L298N motor driver
-* 4 × TT gear motors
-* Chassis
-* Battery pack
-* Jumper wires
-* Appropriate power switch
-
----
-
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/yash-patil-26/Gesture_Car.git
-cd Gesture_Car
-```
-
-Create a virtual environment:
-
-```bash
-python -m venv venv
-```
-
-Activate it on Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## 2. Configure MQTT
-
-Create your local MQTT configuration using the project's configuration files.
-
-Do **not** commit real broker credentials, Wi-Fi passwords, or other secrets to Git.
-
-Example configuration:
-
-```python
-MQTT_BROKER = "your-broker-host"
-MQTT_USERNAME = "your-username"
-MQTT_PASSWORD = "your-password"
-```
-
-The ESP8266 firmware requires corresponding Wi-Fi and MQTT configuration.
-
----
-
-## 3. Collect training data
-
-```bash
-python src/collect_data.py
-```
-
-Follow the prompts to record examples for each gesture.
-
-For better generalization, training data should contain variation in:
-
-* Hand position
-* Distance from camera
-* Rotation
-* Lighting
-* Background
-* Different users
-
----
-
-## 4. Train and export the model
-
-```bash
-python src/pipeline.py --stage train,export
-```
-
-The exported model should be available to the browser application as:
-
-```text
-docs/model.onnx
-docs/labels.json
-```
-
----
-
-## 5. Flash the ESP8266
-
-Open:
-
-```text
-esp8266/car_firmware/car_firmware.ino
-```
-
-In Arduino IDE:
-
-```text
-Board → NodeMCU 1.0 (ESP-12E Module)
-```
-
-Install:
-
-```text
-PubSubClient
-```
-
-Configure Wi-Fi and MQTT credentials, then upload the firmware.
-
-Open the serial monitor at:
-
-```text
-115200 baud
-```
-
-A successful MQTT connection should be reported by the firmware.
-
----
-
-# 🌐 Run the Web Controller
-
-The production controller is available through GitHub Pages:
-
-**https://yash-patil-26.github.io/Gesture_car/**
-
-On a compatible phone:
-
-1. Open the controller.
-2. Allow camera access.
-3. Start the controller.
-4. Show a supported gesture.
-5. The corresponding command is sent to the car.
-
-The browser handles gesture recognition locally. The MQTT layer receives the resulting movement command.
-
----
-
-# 💻 Development Mode
-
-For local development:
-
-```bash
-python src/app.py
-```
-
-Then open:
-
-```text
-http://localhost:5000
-```
-
-The development interface provides tools for testing the gesture-recognition pipeline, MQTT connectivity, and command flow without relying on the deployed GitHub Pages interface.
-
----
-
-# 📁 Project Structure
+## 📁 Project Structure
 
 ```text
 Gesture_Car/
 │
 ├── docs/
-│   ├── index.html              # Browser controller
-│   ├── model.onnx              # ONNX gesture model
-│   └── labels.json             # Gesture labels and commands
+│   ├── index.html          # Web controller
+│   ├── model.onnx          # ML model
+│   └── labels.json         # Gesture mapping
 │
 ├── esp8266/
 │   └── car_firmware/
-│       └── car_firmware.ino    # ESP8266 firmware
+│       └── car_firmware.ino
 │
 ├── src/
-│   ├── app.py                  # Local development server
-│   ├── collect_data.py         # Gesture data collection
-│   ├── config.py               # Configuration and ML utilities
-│   └── pipeline.py             # Training and ONNX export
+│   ├── config.py
+│   ├── pipeline.py         # Train + export
+│   ├── collect_data.py     # Data collection
+│   └── app.py              # Local Flask dashboard
 │
 ├── outputs/
-│   └── confusion_matrix.png    # Model evaluation output
+│   └── confusion_matrix.png
 │
 ├── requirements.txt
 └── README.md
@@ -523,125 +158,152 @@ Gesture_Car/
 
 ---
 
-# 🧩 Technology Stack
+# ⚡ Quick Start
 
-### Frontend / Browser
+### 1. Clone
 
-* HTML
-* CSS
-* JavaScript
-* MediaPipe
-* ONNX Runtime Web
-* WebSocket MQTT
+```bash
+git clone https://github.com/yash-patil-26/Gesture_Car.git
+cd Gesture_Car
 
-### Machine Learning
-
-* Python
-* scikit-learn
-* Random Forest
-* ONNX
-
-### IoT
-
-* ESP8266
-* Arduino
-* MQTT
-* HiveMQ
-* L298N
-* TT DC motors
-
-### Development
-
-* Flask
-* Git
-* GitHub Pages
-* Arduino IDE
-
----
-
-# 📊 Project Highlights
-
-This project demonstrates an end-to-end system rather than an isolated ML model:
-
-```text
-Machine Learning
-       +
-Computer Vision
-       +
-Web Development
-       +
-MQTT / Networking
-       +
-Embedded Systems
-       +
-Motor Control
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-The interesting engineering challenge is the boundary between these layers: a gesture recognized by a browser becomes a network message, which becomes a hardware command and ultimately physical movement.
+### 2. Configure MQTT
+
+Set credentials in `src/config.py` and `esp8266/car_firmware/car_firmware.ino`.
+
+```python
+MQTT_BROKER   = "your-broker-host"
+MQTT_USERNAME = "your-username"
+MQTT_PASSWORD = "your-password"
+```
+
+**Do not commit real credentials.**
+
+### 3. Train
+
+```bash
+python src/collect_data.py
+python src/pipeline.py --stage train,export
+```
+
+Generated browser assets:
+
+```text
+docs/model.onnx
+docs/labels.json
+```
+
+### 4. Flash ESP8266
+
+Open:
+
+```text
+esp8266/car_firmware/car_firmware.ino
+```
+
+Arduino IDE:
+
+```text
+Board → NodeMCU 1.0 (ESP-12E Module)
+Library → PubSubClient
+```
+
+Configure Wi-Fi + MQTT credentials and upload.
+
+### 5. Run
+
+Open:
+
+[https://yash-patil-26.github.io/Gesture_car/]
+
+Then:
+
+**Power car → Start controller → Allow camera → Show gesture**
 
 ---
 
-# ⚠️ Current Scope & Limitations
+## 🖥️ Development Mode
 
-This is a prototype-oriented robotics project.
+```bash
+python src/app.py
+```
 
-Current limitations include:
+Open:
 
-* Gesture recognition depends on camera quality and lighting.
-* The trained model is limited to the gesture classes represented in the dataset.
-* MQTT connectivity is required for remote browser-to-car communication.
-* Motor performance depends on battery condition, chassis weight, motor variation, and surface.
-* The L298N introduces voltage loss compared with more modern motor-driver designs.
-* Browser camera permissions and secure-context requirements apply to the deployed controller.
+```text
+http://localhost:5000
+```
 
-These constraints are part of the current implementation and provide clear areas for future improvement.
+The local dashboard provides camera, gesture, MQTT and command visibility during development.
 
 ---
 
-# 🔮 Possible Improvements
+## 📡 Connection States
 
-Potential future development includes:
+| Status                      | Meaning                       |
+| --------------------------- | ----------------------------- |
+| 🟡 Connecting               | Connecting to MQTT broker     |
+| 🟡 Device not connected     | Broker available, car offline |
+| 🟢 Connected                | Car online and ready          |
+| 🔴 Device already connected | Another controller is active  |
 
-* Additional gesture classes
-* Better dataset collection and evaluation
-* Model benchmarking against alternative classifiers
-* Improved motor-driver hardware
-* Variable-speed gesture control
+---
+
+## 🛠️ Tech Stack
+
+**Computer Vision:** MediaPipe
+**ML:** Python · scikit-learn · Random Forest · ONNX
+**Browser:** HTML · CSS · JavaScript · ONNX Runtime Web
+**IoT:** MQTT · HiveMQ
+**Embedded:** ESP8266 · Arduino · PubSubClient · L298N
+**Deployment:** GitHub Pages
+**Development:** Flask
+
+---
+
+## 🔬 Engineering Highlights
+
+* Custom hand-gesture dataset and training pipeline
+* Random Forest → ONNX browser deployment
+* Client-side ML inference
+* MQTT browser-to-ESP8266 communication
+* Embedded motor-control firmware
+* Gesture confirmation logic
+* Communication watchdog / fail-safe stop
+* Static web deployment through GitHub Pages
+
+---
+
+## 🔮 Future Scope
+
+* More gesture classes
+* Improved cross-user robustness
+* Battery telemetry
 * Obstacle detection
-* Autonomous/manual hybrid driving
-* Multi-car addressing through MQTT
-* Mobile UI improvements
-* More detailed telemetry and diagnostics
+* Local/offline communication
+* Autonomous navigation
+* Hardware status monitoring
 
 ---
 
-# 📌 Why This Project?
+## 📜 License
 
-Gesture Car explores a practical combination of **edge machine learning, browser-based computer vision, IoT messaging, and embedded robotics**.
-
-Instead of sending camera frames to a server, the system reduces the vision problem to a compact landmark representation and performs classification on the client device. The resulting command is then transmitted through MQTT to a resource-constrained microcontroller.
-
-That architecture makes the project a useful study of how modern web technologies and lightweight ML can interact with physical hardware.
+MIT License
 
 ---
 
-# 📜 License
+<div align="center">
 
-This project is released under the **MIT License**.
+### Computer Vision × Machine Learning × IoT × Robotics
 
-See [`LICENSE`](LICENSE) for details.
+**Built by Yash Patil**
 
----
+https://github.com/Yash-Patil-26
 
-## 👤 Author
+⭐ Star the repository if you find it interesting.
 
-**Yash Patil**
-
-GitHub:
-https://github.com/yash-patil-26
-
----
-
-<p align="center">
-  Built with MediaPipe · ONNX · MQTT · ESP8266 · Python · JavaScript
-</p>
+</div>

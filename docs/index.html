@@ -681,7 +681,7 @@ document.getElementById('retry-btn').addEventListener('click', () => {
 function sendCmd(cmd) {
   const now     = Date.now();
   const changed = cmd !== lastSentCmd;
-  const beat    = now - lastSentTime > 100;
+  const beat    = now - lastSentTime > 200;
   if ((changed || beat) && mqttClient?.connected) {
     mqttClient.publish(TOPIC_CMD, cmd, { qos: 0, retain: false });
     lastSentCmd  = cmd;

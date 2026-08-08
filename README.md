@@ -12,7 +12,7 @@ Control a real RC car with hand gestures through your phone — no app, no lapto
 
 <br/>
 
-https://github.com/yash-patil-26/Gesture_Car/assets/YOUR_USER_ID/demo.mp4
+https://github.com/yash-patil-26/Gesture_Car/assets/demo.mp4
 
 </div>
 

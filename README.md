@@ -11,8 +11,7 @@ Control a real RC car with hand gestures through your phone — no app, no lapto
 [![MIT License](https://img.shields.io/badge/License-MIT-gray?style=for-the-badge)](LICENSE)
 
 <br/>
-
-https://github.com/yash-patil-26/Gesture_Car/assets/demo.mp4
+https://github.com/user-attachments/assets/304a75fb-850f-4141-9bdb-6fb4176caa54 
 
 </div>
 
